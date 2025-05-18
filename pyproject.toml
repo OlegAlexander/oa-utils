@@ -1,0 +1,19 @@
+[project]
+name = "oa-utils"
+version = "0.1.0"
+description = "Python utilities."
+authors = [
+    {name = "Oleg Alexander"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+strict = true
