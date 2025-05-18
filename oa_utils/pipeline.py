@@ -1,7 +1,7 @@
 from __future__ import annotations
 import functools
 import copy
-from typing import Callable, Iterable, TypeVar, Any, Generic
+from typing import Callable, Iterable, Iterator, TypeVar, Any, Generic
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -296,7 +296,7 @@ class Pipeline(Generic[T]):
         """
         return str(self)
 
-    def __iter__(self) -> Iterable[T]:
+    def __iter__(self) -> Iterator[T]:
         """
         >>> list(Pipeline([1, 2, 3]))
         [1, 2, 3]
@@ -308,3 +308,4 @@ if __name__ == "__main__":
     # from importlib import reload; import oa_utils.pipeline; reload(oa_utils.pipeline); from oa_utils.pipeline import Pipeline
     import doctest
     doctest.testmod()
+    
