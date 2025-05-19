@@ -7,7 +7,7 @@ T = TypeVar("T")
 U = TypeVar("U")
 V = TypeVar("V")
 
-class Pipeline(Generic[T]):
+class Pipeline(Generic[T], Iterable[T]):
     """Fluent wrapper around a list.
     
     >>> (Pipeline(range(10))
@@ -45,19 +45,19 @@ class Pipeline(Generic[T]):
         """
         return Pipeline(filter(pred, self._data))
 
-    def zip(self, other: Iterable[U], strict: bool = False) -> Pipeline[tuple[T, U]]:
+    def zip(self, other: Iterable[U]) -> Pipeline[tuple[T, U]]:
         """
         >>> Pipeline([1, 2]).zip([10, 20]).to_list()
         [(1, 10), (2, 20)]
         """
-        return Pipeline(zip(self._data, other, strict=strict))
+        return Pipeline(zip(self._data, other, strict=True))
 
-    def zip_with(self, fn: Callable[[T, U], V], other: Iterable[U], strict: bool = False) -> Pipeline[V]:
+    def zip_with(self, fn: Callable[[T, U], V], other: Iterable[U]) -> Pipeline[V]:
         """
         >>> Pipeline([1, 2]).zip_with(lambda a, b: a + b, [10, 20]).to_list()
         [11, 22]
         """
-        return Pipeline(fn(a, b) for a, b in zip(self._data, other, strict=strict))
+        return Pipeline(fn(a, b) for a, b in zip(self._data, other, strict=True))
 
     def sorted(self, key: Callable[[T], Any] | None = None, reverse: bool = False) -> Pipeline[T]:
         """
