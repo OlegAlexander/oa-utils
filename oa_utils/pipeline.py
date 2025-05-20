@@ -24,13 +24,6 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         self._data = list(iterable)
 
-    def to_list(self) -> list[T]:
-        """
-        >>> Pipeline([1, 2, 3]).to_list()
-        [1, 2, 3]
-        """
-        return self._data
-
     def map(self, fn: Callable[[T], U]) -> Pipeline[U]:
         """
         >>> Pipeline([1, 2, 3]).map(lambda x: x * 2).to_list()
@@ -146,6 +139,13 @@ class Pipeline(Generic[T], Iterable[T]):
         return self
 
     # === Terminal methods ===
+
+    def to_list(self) -> list[T]:
+        """
+        >>> Pipeline([1, 2, 3]).to_list()
+        [1, 2, 3]
+        """
+        return self._data.copy()
 
     def first(self) -> T:
         """
@@ -322,6 +322,70 @@ class Pipeline(Generic[T], Iterable[T]):
         [1, 2, 3]
         """
         return iter(self._data)
+
+    def __len__(self) -> int:
+        """
+        >>> len(Pipeline([1, 2, 3]))
+        3
+        """
+        return len(self._data)
+    
+    def __getitem__(self, index: int) -> T:
+        """
+        >>> Pipeline([1, 2, 3])[1]
+        2
+        """
+        return self._data[index]
+    
+    def __setitem__(self, index: int, value: T) -> None:
+        """
+        >>> p = Pipeline([1, 2, 3])
+        >>> p[1] = 4
+        >>> p.to_list()
+        [1, 4, 3]
+        """
+        self._data[index] = value
+        
+    def __delitem__(self, index: int) -> None:
+        """
+        >>> p = Pipeline([1, 2, 3])
+        >>> del p[1]
+        >>> p.to_list()
+        [1, 3]
+        """
+        del self._data[index]
+        
+    def __contains__(self, item: T) -> bool:
+        """
+        >>> 2 in Pipeline([1, 2, 3])
+        True
+        >>> 4 in Pipeline([1, 2, 3])
+        False
+        """
+        return item in self._data
+    
+    def __reversed__(self) -> Iterator[T]:
+        """
+        >>> list(reversed(Pipeline([1, 2, 3])))
+        [3, 2, 1]
+        """
+        return reversed(self._data)
+    
+    def __add__(self, other: Iterable[T]) -> Pipeline[T]:
+        """
+        >>> Pipeline([1, 2]) + Pipeline([3, 4])
+        Pipeline([1, 2, 3, 4])
+        """
+        return Pipeline(self._data + list(other))
+    
+    def __mul__(self, n: int) -> Pipeline[T]:
+        """
+        >>> Pipeline([1, 2]) * 2
+        Pipeline([1, 2, 1, 2])
+        """
+        return Pipeline(self._data * n)
+
+        
 
 if __name__ == "__main__":
     # Interpreter usage: 
