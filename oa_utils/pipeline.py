@@ -52,13 +52,13 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         return Pipeline(fn(a, b) for a, b in zip(self._data, other, strict=True))
 
-    def starmap(self, fn: Callable[[T, U], V]) -> Pipeline[V]:
+    def zip_tuples_with(self, fn: Callable[[T, U], V]) -> Pipeline[V]:
         """
-        >>> Pipeline([(1, 2), (3, 4)]).starmap(lambda a, b: a + b).to_list()
+        >>> Pipeline([(1, 2), (3, 4)]).zip_tuples_with(lambda a, b: a + b).to_list()
         [3, 7]
         """
         if not all(isinstance(item, tuple) and len(item) == 2 for item in self._data):
-            raise ValueError("starmap requires an iterable of tuples with 2 elements")
+            raise ValueError("zip_tuples_with requires an iterable of tuples with 2 elements")
         return Pipeline(itertools.starmap(fn, self._data)) # type: ignore
 
     def sort(self, key: Callable[[T], Any] | None = None, reverse: bool = False) -> Pipeline[T]:
