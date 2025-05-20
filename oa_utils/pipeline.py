@@ -1,5 +1,6 @@
 from __future__ import annotations
 import functools
+import itertools
 from typing import Callable, Iterable, Iterator, TypeVar, Any, Generic
 
 T = TypeVar("T")
@@ -57,6 +58,15 @@ class Pipeline(Generic[T], Iterable[T]):
         [11, 22]
         """
         return Pipeline(fn(a, b) for a, b in zip(self._data, other, strict=True))
+
+    def starmap(self, fn: Callable[[T, U], V]) -> Pipeline[V]:
+        """
+        >>> Pipeline([(1, 2), (3, 4)]).starmap(lambda a, b: a + b).to_list()
+        [3, 7]
+        """
+        if not all(isinstance(item, tuple) and len(item) == 2 for item in self._data):
+            raise ValueError("starmap requires an iterable of tuples with 2 elements")
+        return Pipeline(itertools.starmap(fn, self._data)) # type: ignore
 
     def sort(self, key: Callable[[T], Any] | None = None, reverse: bool = False) -> Pipeline[T]:
         """
