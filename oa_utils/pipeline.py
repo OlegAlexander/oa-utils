@@ -1,6 +1,5 @@
 from __future__ import annotations
 import functools
-import copy
 from typing import Callable, Iterable, Iterator, TypeVar, Any, Generic
 
 T = TypeVar("T")
@@ -59,11 +58,11 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         return Pipeline(fn(a, b) for a, b in zip(self._data, other, strict=True))
 
-    def sorted(self, key: Callable[[T], Any] | None = None, reverse: bool = False) -> Pipeline[T]:
+    def sort(self, key: Callable[[T], Any] | None = None, reverse: bool = False) -> Pipeline[T]:
         """
-        >>> Pipeline([3, 1, 2]).sorted().to_list()
+        >>> Pipeline([3, 1, 2]).sort().to_list()
         [1, 2, 3]
-        >>> Pipeline([3, 1, 2]).sorted(reverse=True).to_list()
+        >>> Pipeline([3, 1, 2]).sort(reverse=True).to_list()
         [3, 2, 1]
         """
         return Pipeline(sorted(self._data, key=key, reverse=reverse))  # type: ignore
@@ -74,17 +73,6 @@ class Pipeline(Generic[T], Iterable[T]):
         [1, 2, 3]
         """
         return Pipeline(dict.fromkeys(self._data))
-
-    def deepcopy(self) -> Pipeline[T]:
-        """
-        >>> orig_p = Pipeline([[1, 2], [3, 4]])
-        >>> copy_p = orig_p.deepcopy()
-        >>> copy_p.to_list() == orig_p.to_list()
-        True
-        >>> copy_p.to_list() is orig_p.to_list()
-        False
-        """
-        return Pipeline(copy.deepcopy(self._data))
     
     def slice(self, start: int = 0, end: int | None = None, step: int = 1) -> Pipeline[T]:
         """
@@ -94,6 +82,20 @@ class Pipeline(Generic[T], Iterable[T]):
         if end is None:
             end = len(self._data)
         return Pipeline(self._data[start:end:step])
+
+    def take(self, n: int) -> Pipeline[T]:
+        """
+        >>> Pipeline([1, 2, 3, 4]).take(2).to_list()
+        [1, 2]
+        """
+        return Pipeline(self._data[:n])
+    
+    def drop(self, n: int) -> Pipeline[T]:
+        """
+        >>> Pipeline([1, 2, 3, 4]).drop(2).to_list()
+        [3, 4]
+        """
+        return Pipeline(self._data[n:])
 
     def enumerate(self, start: int = 0) -> Pipeline[tuple[int, T]]:
         """
@@ -112,20 +114,6 @@ class Pipeline(Generic[T], Iterable[T]):
             Pipeline(self._data[i : i + n]) for i in range(0, len(self._data), n)
         )
 
-    def take(self, n: int) -> Pipeline[T]:
-        """
-        >>> Pipeline([1, 2, 3, 4]).take(2).to_list()
-        [1, 2]
-        """
-        return Pipeline(self._data[:n])
-    
-    def drop(self, n: int) -> Pipeline[T]:
-        """
-        >>> Pipeline([1, 2, 3, 4]).drop(2).to_list()
-        [3, 4]
-        """
-        return Pipeline(self._data[n:])
-    
     def for_each(self, fn: Callable[[T], None]) -> Pipeline[T]:
         """
         >>> Pipeline([1, 2, 3]).for_each(print).to_list()
@@ -138,26 +126,50 @@ class Pipeline(Generic[T], Iterable[T]):
             fn(item)
         return self
 
-    def print(self, label: str | None = None) -> Pipeline[T]:
+    def print(self, label: str = "") -> Pipeline[T]:
         """
-        >>> Pipeline([1, 2, 3]).print("Numbers:")
+        >>> Pipeline([1, 2, 3]).print("Numbers: ")
         Numbers: Pipeline([1, 2, 3])
         Pipeline([1, 2, 3])
         """
-        if label is not None:
-            print(label, self)
-        else:
-            print(self)
+        print(f"{label}{self}")
         return self
 
     # === Terminal methods ===
 
+    def first(self) -> T:
+        """
+        >>> Pipeline([1, 2, 3]).first()
+        1
+        """
+        if not self._data:
+            raise IndexError("Pipeline is empty")
+        return self._data[0]
+    
+    def last(self) -> T:
+        """
+        >>> Pipeline([1, 2, 3]).last()
+        3
+        """
+        if not self._data:
+            raise IndexError("Pipeline is empty")
+        return self._data[-1]
+
     def reduce(self, fn: Callable[[V, T], V], initial: V) -> V:
         """
-        >>> Pipeline([1, 2, 3]).reduce(lambda acc, x: acc + x, 0)
-        6
+        >>> Pipeline([104, 101, 108, 108, 111]).reduce(lambda acc, x: acc + chr(x), "")     
+        'hello'
         """
         return functools.reduce(fn, self._data, initial)
+
+    def reduce_non_empty(self, fn: Callable[[T, T], T]) -> T:
+        """
+        >>> Pipeline([1, 2, 3]).reduce_non_empty(lambda acc, x: acc + x)
+        6
+        """
+        if not self._data:
+            raise ValueError("Pipeline is empty")
+        return functools.reduce(fn, self._data)
 
     def len(self) -> int:
         """
@@ -235,18 +247,16 @@ class Pipeline(Generic[T], Iterable[T]):
         >>> Pipeline([1, 2, 4]).insert(2, 3).to_list()
         [1, 2, 3, 4]
         """
-        new_data = copy.deepcopy(self._data)
-        new_data.insert(index, item)
-        return Pipeline(new_data)
+        self._data.insert(index, item)
+        return Pipeline(self._data)
     
     def remove(self, item: T) -> Pipeline[T]:
         """
         >>> Pipeline([1, 2, 3]).remove(2).to_list()
         [1, 3]
         """
-        new_data = copy.deepcopy(self._data)
-        new_data.remove(item)
-        return Pipeline(new_data)
+        self._data.remove(item)
+        return Pipeline(self._data)
     
     def index(self, item: T) -> int:
         """
