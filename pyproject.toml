@@ -1,11 +1,13 @@
 [project]
 name = "oa-utils"
-version = "0.1.0"
-description = "Python utilities."
+version = "0.1.1"
+description = "Statically typed Python utilities."
 authors = [
     {name = "Oleg Alexander"}
 ]
 readme = "README.md"
+license = {text = "MIT"}
+keywords = ["utilities", "functional programming", "fluent interface", "collection pipeline"]
 requires-python = ">=3.11"
 dependencies = [
 ]
@@ -17,3 +19,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
 strict = true
+
+[project.urls]
+Homepage = "https://github.com/OlegAlexander/oa-utils"
