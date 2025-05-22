@@ -1,13 +1,15 @@
 from __future__ import annotations
 import functools
 import itertools
-from typing import Callable, Iterable, Iterator, TypeVar, Any, Generic
+import more_itertools
+from pprint import pprint
+from typing import IO, Callable, Iterable, Iterator, Literal, TypeVar, Any
 
 T = TypeVar("T")
 U = TypeVar("U")
 V = TypeVar("V")
 
-class Pipeline(Generic[T], Iterable[T]):
+class Pipeline(Iterable[T]):
     """Fluent wrapper around a list.
     
     >>> (Pipeline(range(10))
@@ -45,6 +47,16 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         return Pipeline(zip(self._data, other, strict=True))
 
+    def zip_longest(self, other: Iterable[U], fillvalue: V) -> Pipeline[tuple[T | V, U | V]]:
+        """
+        >>> Pipeline([1, 2]).zip_longest([10, 20, 30], fillvalue=None).to_list()
+        [(1, 10), (2, 20), (None, 30)]
+        
+        >>> Pipeline([1, 2, 3]).zip_longest([10, 20], fillvalue=0).to_list()
+        [(1, 10), (2, 20), (3, 0)]
+        """
+        return Pipeline(itertools.zip_longest(self._data, other, fillvalue=fillvalue))
+
     def zip_with(self, fn: Callable[[T, U], V], other: Iterable[U]) -> Pipeline[V]:
         """
         >>> Pipeline([1, 2]).zip_with(lambda a, b: a + b, [10, 20]).to_list()
@@ -65,6 +77,7 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         >>> Pipeline([3, 1, 2]).sort().to_list()
         [1, 2, 3]
+        
         >>> Pipeline([3, 1, 2]).sort(reverse=True).to_list()
         [3, 2, 1]
         """
@@ -107,15 +120,50 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         return Pipeline(enumerate(self._data, start))
 
-    def batched(self, n: int) -> Pipeline[Pipeline[T]]:
+    def batch(self, n: int, strict: bool = False, pipelines: bool = True) -> Pipeline[Iterable[T]]:
         """
-        >>> p = Pipeline(range(1, 6)).batched(2)
-        >>> [batch.to_list() for batch in p]
-        [[1, 2], [3, 4], [5]]
+        >>> Pipeline(range(1, 6)).batch(2)
+        Pipeline([Pipeline([1, 2]), Pipeline([3, 4]), Pipeline([5])])
+        
+        >>> Pipeline(range(1, 6)).batch(2, pipelines=False)
+        Pipeline([[1, 2], [3, 4], [5]])
         """
-        return Pipeline(
-            Pipeline(self._data[i : i + n]) for i in range(0, len(self._data), n)
-        )
+        if pipelines:
+            return Pipeline([Pipeline(batch) for batch 
+                             in more_itertools.chunked(self._data, n, strict=strict)])
+        else:
+            return Pipeline(more_itertools.chunked(self._data, n, strict=strict))
+    
+    def batch_fill(self, n: int, 
+                   fillvalue: U,
+                   incomplete: Literal['fill', 'ignore', 'strict'] = 'fill',
+                   pipelines: bool = True) -> Pipeline[Iterable[T | U]]:
+        """
+        >>> Pipeline(range(1, 6)).batch_fill(2, fillvalue=0)
+        Pipeline([Pipeline([1, 2]), Pipeline([3, 4]), Pipeline([5, 0])])
+        
+        >>> Pipeline(range(1, 6)).batch_fill(2, fillvalue=0, pipelines=False)
+        Pipeline([[1, 2], [3, 4], [5, 0]])
+        """
+        if pipelines:
+            return Pipeline([Pipeline(row) for row 
+                    in more_itertools.grouper(self._data, n, 
+                                              incomplete=incomplete, 
+                                              fillvalue=fillvalue)])
+        else:
+            return Pipeline([list(row) for row 
+                    in more_itertools.grouper(self._data, n, 
+                                            incomplete=incomplete, 
+                                            fillvalue=fillvalue)])
+
+    def flatten(self: Pipeline[Iterable[T]]) -> Pipeline[T]:
+        """
+        >>> Pipeline([[1, 2], [3, 4]]).flatten().to_list()
+        [1, 2, 3, 4]
+        """
+        if not all(isinstance(item, Iterable) for item in self._data):
+            raise ValueError("flatten requires an iterable of iterables")
+        return Pipeline(itertools.chain.from_iterable(self._data))
 
     def for_each(self, fn: Callable[[T], None]) -> Pipeline[T]:
         """
@@ -129,13 +177,45 @@ class Pipeline(Generic[T], Iterable[T]):
             fn(item)
         return self
 
-    def print(self, label: str = "") -> Pipeline[T]:
+    def print(self, label: str = "", 
+              label_only: bool = False,
+              end: str | None = "\n",
+              file: IO[str] | None = None,
+              flush: bool = False) -> Pipeline[T]:
         """
-        >>> Pipeline([1, 2, 3]).print("Numbers: ")
+        >>> Pipeline([1, 2, 3]).print("Numbers: ", end="\\n\\n")
         Numbers: Pipeline([1, 2, 3])
+        <BLANKLINE>
+        Pipeline([1, 2, 3])
+        
+        >>> Pipeline([1, 2, 3]).print("Numbers:", label_only=True)
+        Numbers:
         Pipeline([1, 2, 3])
         """
-        print(f"{label}{self}")
+        if label_only:
+            print(label, end=end, file=file, flush=flush)
+        else:
+            print(f"{label}{self}", end=end, file=file, flush=flush)
+        return self
+
+    def pprint(self, label: str = "", 
+               stream: IO[str] | None = None, 
+               indent: int = 1, width: int = 80, 
+               depth: int | None = None, 
+               compact: bool = False, 
+               sort_dicts: bool = True, 
+               underscore_numbers: bool = False) -> Pipeline[T]:
+        """
+        >>> Pipeline([1, 2, 3]).pprint("Numbers:")
+        Numbers:
+        [1, 2, 3]
+        Pipeline([1, 2, 3])
+        """
+        if label:
+            print(label)
+        pprint(self._data, stream=stream, indent=indent, width=width,
+               depth=depth, compact=compact, sort_dicts=sort_dicts,
+               underscore_numbers=underscore_numbers)
         return self
 
     # === Terminal methods ===
@@ -213,6 +293,7 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         >>> Pipeline([False, False, True]).any()
         True
+        
         >>> Pipeline([False, False, False]).any()
         False
         """
@@ -222,6 +303,7 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         >>> Pipeline([True, True, True]).all()
         True
+        
         >>> Pipeline([True, False, True]).all()
         False
         """
@@ -231,6 +313,7 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         >>> Pipeline([1, 2, 3]).contains(2)
         True
+        
         >>> Pipeline([1, 2, 3]).contains(4)
         False
         """
@@ -295,6 +378,7 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         >>> Pipeline([1, 2, 3]) == Pipeline([1, 2, 3])
         True
+        
         >>> Pipeline([1, 2]) == Pipeline([2, 1])
         False
         """
@@ -359,6 +443,7 @@ class Pipeline(Generic[T], Iterable[T]):
         """
         >>> 2 in Pipeline([1, 2, 3])
         True
+        
         >>> 4 in Pipeline([1, 2, 3])
         False
         """
