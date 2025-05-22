@@ -198,7 +198,7 @@ class Pipeline(Iterable[T]):
             print(f"{label}{self}", end=end, file=file, flush=flush)
         return self
 
-    def pprint(self, label: str = "", 
+    def pprint(self, label: str = "", end: str = "",
                stream: IO[str] | None = None, 
                indent: int = 1, width: int = 80, 
                depth: int | None = None, 
@@ -206,16 +206,19 @@ class Pipeline(Iterable[T]):
                sort_dicts: bool = True, 
                underscore_numbers: bool = False) -> Pipeline[T]:
         """
-        >>> Pipeline([1, 2, 3]).pprint("Numbers:")
+        >>> Pipeline([1, 2, 3]).pprint("Numbers:" , end="\\n")
         Numbers:
         [1, 2, 3]
+        <BLANKLINE>
         Pipeline([1, 2, 3])
         """
         if label:
-            print(label)
+            print(label, file=stream)
         pprint(self._data, stream=stream, indent=indent, width=width,
                depth=depth, compact=compact, sort_dicts=sort_dicts,
                underscore_numbers=underscore_numbers)
+        if end:
+            print(end, file=stream, end="")
         return self
 
     # === Terminal methods ===
