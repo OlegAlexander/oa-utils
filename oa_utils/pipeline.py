@@ -172,6 +172,13 @@ class Pipeline(tuple[T_co, ...]):
         fn(self)
         return self
 
+    def apply(self, fn: Callable[[Pipeline[T_co]], Iterable[Any]]) -> Pipeline[Any]:
+        """
+        >>> Pipeline([[1, 2, 3], [4, 5, 6]]).apply(more_itertools.transpose)
+        ((1, 4), (2, 5), (3, 6))
+        """
+        return Pipeline(fn(self))
+
     def print(self, label: str = "", 
               label_only: bool = False,
               end: str | None = "\n",

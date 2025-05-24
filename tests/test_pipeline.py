@@ -1,5 +1,6 @@
 # C:/Python310/python.exe -m pytest
 from oa_utils.pipeline import Pipeline
+import more_itertools
 from typing import Literal, Any
 from typing_extensions import assert_type
 
@@ -109,6 +110,11 @@ def test_for_self() -> None:
     p = Pipeline([1, 2, 3]).for_self(lambda pipe: print(pipe.len()))
     assert p == (1, 2, 3)
     assert_type(p, Pipeline[int])
+
+def test_apply() -> None:
+    p = Pipeline([[1, 2, 3], [4, 5, 6]]).apply(more_itertools.transpose)
+    assert p == ((1, 4), (2, 5), (3, 6))
+    assert_type(p, Pipeline[Any])
 
 def test_print() -> None:
     # We can’t check printed text easily, but can check it returns the pipeline.
