@@ -3,6 +3,7 @@ import functools
 import itertools
 import more_itertools
 from pprint import pprint
+from collections import defaultdict
 from typing import IO, Callable, Iterable, Literal, TypeVar, Any
 
 T_co = TypeVar("T_co", covariant=True)
@@ -249,6 +250,26 @@ class Pipeline(tuple[T_co, ...]):
         (3, 2, 1)
         """
         return Pipeline(reversed(self))
+
+    def group_by(self, key: Callable[[T_co], K]) -> Pipeline[tuple[K, Pipeline[T_co]]]:
+        """
+        >>> names = ['Roger', 'Alice', 'Adam', 'Bob']
+        >>> Pipeline(names).group_by(lambda name: name[0])
+        (('R', ('Roger',)), ('A', ('Alice', 'Adam')), ('B', ('Bob',)))
+        
+        >>> people = [{'name': 'Roger', 'age': 25},
+        ...           {'name': 'Alice', 'age': 25},
+        ...           {'name': 'Bob', 'age': 11}]
+        >>> Pipeline(people).group_by(lambda person: person['age'])
+        ((25, ({'name': 'Roger', 'age': 25}, {'name': 'Alice', 'age': 25})), (11, ({'name': 'Bob', 'age': 11},)))
+        
+        >>> Pipeline(range(10)).group_by(lambda x: x % 2 == 0)
+        ((True, (0, 2, 4, 6, 8)), (False, (1, 3, 5, 7, 9)))
+        """
+        grouped: defaultdict[K, list[T_co]] = defaultdict(list)
+        for item in self:
+            grouped[key(item)].append(item)
+        return Pipeline((k, Pipeline(v)) for k, v in grouped.items())
 
     # === Terminal methods ===
 

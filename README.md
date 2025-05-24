@@ -4,7 +4,7 @@ Statically typed Python utilities.
 
 ## Pipeline
 
-Fluent wrapper around a list.
+Fluent wrapper around a tuple.
 
 ```python
 from oa_utils.pipeline import Pipeline

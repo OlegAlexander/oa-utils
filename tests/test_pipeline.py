@@ -1,6 +1,6 @@
 # C:/Python310/python.exe -m pytest
 from oa_utils.pipeline import Pipeline
-from typing import Literal
+from typing import Literal, Any
 from typing_extensions import assert_type
 
 def test_example_usage() -> None:
@@ -152,6 +152,22 @@ def test_reverse() -> None:
     assert p == (3, 2, 1)
     assert_type(p, Pipeline[int])
 
+def test_group_by() -> None:
+    p1 = Pipeline([1, 2, 3, 4, 5, 6]).group_by(lambda x: x % 2 == 0)
+    assert p1 == ((False, (1, 3, 5)), (True, (2, 4, 6)))
+    assert_type(p1, Pipeline[tuple[bool, Pipeline[int]]])
+    
+    people = [{'name': 'Roger', 'age': 25},
+              {'name': 'Alice', 'age': 25},
+              {'name': 'Bob', 'age': 11}]
+    p2 = Pipeline(people).group_by(lambda person: person['age'])
+    assert p2 == ((25, ({'name': 'Roger', 'age': 25}, {'name': 'Alice', 'age': 25})), (11, ({'name': 'Bob', 'age': 11},)))
+    assert_type(p2, Pipeline[tuple[object, Pipeline[dict[str, object]]]])
+    
+    p3 = Pipeline(['Roger', 'Alice', 'Adam', 'Bob']).group_by(lambda name: name[0])
+    assert p3 == (('R', ('Roger',)), ('A', ('Alice', 'Adam')), ('B', ('Bob',)))
+    assert_type(p3, Pipeline[tuple[str, Pipeline[str]]])
+    
 def test_to_list() -> None:
     p = Pipeline([1, 2, 3]).to_list()
     assert p == [1, 2, 3]
