@@ -2,6 +2,7 @@ from __future__ import annotations
 import functools
 import itertools
 import more_itertools
+import json
 from pprint import pprint
 from collections import defaultdict
 from typing import IO, Callable, Iterable, Literal, TypeVar, Any
@@ -213,10 +214,10 @@ class Pipeline(tuple[T_co, ...]):
                sort_dicts: bool = True, 
                underscore_numbers: bool = False) -> Pipeline[T_co]:
         """
-        >>> Pipeline([1, 2, 3]).pprint("Numbers:" , end="\\n")
+        >>> Pipeline([1, 2, 3]).pprint("Numbers:" , end="---------")
         Numbers:
         (1, 2, 3)
-        <BLANKLINE>
+        ---------
         (1, 2, 3)
         """
         if label:
@@ -225,7 +226,26 @@ class Pipeline(tuple[T_co, ...]):
                depth=depth, compact=compact, sort_dicts=sort_dicts,
                underscore_numbers=underscore_numbers)
         if end:
-            print(end, file=stream, end="")
+            print(end, file=stream)
+        return self
+
+    def print_json(self, label: str = "", end: str = "", 
+                   stream: IO[str] | None = None, 
+                   indent: int | str | None = 2) -> Pipeline[T_co]:
+        """
+        >>> Pipeline([1, 2, 3]).print_json()
+        [
+          1,
+          2,
+          3
+        ]
+        (1, 2, 3)
+        """
+        if label:
+            print(label, file=stream)
+        print(json.dumps(self, indent=indent), file=stream)
+        if end:
+            print(end, file=stream)
         return self
 
     def append(self, item: T) -> Pipeline[T_co | T]:
@@ -305,6 +325,13 @@ class Pipeline(tuple[T_co, ...]):
         {'a': 1, 'b': 2}
         """
         return dict(self)
+
+    def to_json(self, indent: int | str | None = 2) -> str:
+        """
+        >>> Pipeline([1, 2, 3]).to_json()
+        '[\\n  1,\\n  2,\\n  3\\n]'
+        """
+        return json.dumps(self, indent=indent)
 
     def first(self) -> T_co:
         """

@@ -140,6 +140,12 @@ def test_pprint() -> None:
     assert p == (1, 2, 3)
     assert_type(p, Pipeline[int])
 
+def test_print_json() -> None:
+    p = Pipeline([1, 2, 3]).print_json()
+    # Not checking the printed JSON, just that it returns the pipeline.
+    assert p == (1, 2, 3)
+    assert_type(p, Pipeline[int])
+
 def test_append() -> None:
     p = Pipeline([1, 2]).append(3)
     assert p == (1, 2, 3)
@@ -195,6 +201,11 @@ def test_to_dict() -> None:
     p = Pipeline([("a", 1), ("b", 2)]).to_dict()
     assert p == {"a": 1, "b": 2}
     assert_type(p, dict[str, int])
+
+def test_to_json() -> None:
+    p = Pipeline([1, 2, 3]).to_json()
+    assert p == '[\n  1,\n  2,\n  3\n]'
+    assert_type(p, str)
 
 def test_first() -> None:
     p = Pipeline([1, 2, 3]).first()
