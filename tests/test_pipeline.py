@@ -1,7 +1,8 @@
 # C:/Python310/python.exe -m pytest
 from oa_utils.pipeline import Pipeline
+import itertools
 import more_itertools
-from typing import Literal, Any
+from typing import Literal, Iterable, Callable
 from typing_extensions import assert_type
 
 def test_example_usage() -> None:
@@ -112,9 +113,15 @@ def test_for_self() -> None:
     assert_type(p, Pipeline[int])
 
 def test_apply() -> None:
-    p = Pipeline([[1, 2, 3], [4, 5, 6]]).apply(more_itertools.transpose)
-    assert p == ((1, 4), (2, 5), (3, 6))
-    assert_type(p, Pipeline[Any])
+    transpose: Callable[[Iterable[Iterable[int]]], Iterable[tuple[int, ...]]] = more_itertools.transpose
+    p1 = Pipeline([[1, 2, 3], [4, 5, 6]]).apply(transpose)
+    assert p1 == ((1, 4), (2, 5), (3, 6))
+    assert_type(p1, Pipeline[tuple[int, ...]])
+    
+    pairwise: Callable[[Iterable[int]], Iterable[tuple[int, int]]] = itertools.pairwise
+    p2 = Pipeline([1, 2, 3]).apply(pairwise)
+    assert p2 == ((1, 2), (2, 3))
+    assert_type(p2, Pipeline[tuple[int, int]])
 
 def test_print() -> None:
     # We can’t check printed text easily, but can check it returns the pipeline.

@@ -172,10 +172,15 @@ class Pipeline(tuple[T_co, ...]):
         fn(self)
         return self
 
-    def apply(self, fn: Callable[[Pipeline[T_co]], Iterable[Any]]) -> Pipeline[Any]:
+    def apply(self, fn: Callable[[Iterable[T_co]], Iterable[U]]) -> Pipeline[U]:
         """
-        >>> Pipeline([[1, 2, 3], [4, 5, 6]]).apply(more_itertools.transpose)
+        >>> transpose: Callable[[Iterable[Iterable[int]]], Iterable[tuple[int, ...]]] = more_itertools.transpose
+        >>> Pipeline([[1, 2, 3], [4, 5, 6]]).apply(transpose)
         ((1, 4), (2, 5), (3, 6))
+        
+        >>> pairwise: Callable[[Iterable[int]], Iterable[tuple[int, int]]] = itertools.pairwise
+        >>> Pipeline([1, 2, 3]).apply(pairwise)
+        ((1, 2), (2, 3))
         """
         return Pipeline(fn(self))
 
