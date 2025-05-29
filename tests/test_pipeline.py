@@ -1,5 +1,5 @@
 # C:/Python310/python.exe -m pytest
-from oa_utils.pipeline import Pipeline
+from oa_utils.pipeline import Pipeline, Vector2
 import itertools
 import more_itertools
 from typing import Literal, Iterable, Callable
@@ -141,10 +141,15 @@ def test_pprint() -> None:
     assert_type(p, Pipeline[int])
 
 def test_print_json() -> None:
-    p = Pipeline([1, 2, 3]).print_json()
+    p1 = Pipeline([1, 2, 3]).print_json()
     # Not checking the printed JSON, just that it returns the pipeline.
-    assert p == (1, 2, 3)
-    assert_type(p, Pipeline[int])
+    assert p1 == (1, 2, 3)
+    assert_type(p1, Pipeline[int])
+        
+    p2 = Pipeline([Vector2(1.0, 2.0)]).print_json()
+    # Not checking the printed JSON, just that it returns the pipeline.
+    assert p2 == (Vector2(x=1.0, y=2.0),)
+    assert_type(p2, Pipeline[Vector2])
 
 def test_append() -> None:
     p = Pipeline([1, 2]).append(3)
@@ -203,9 +208,18 @@ def test_to_dict() -> None:
     assert_type(p, dict[str, int])
 
 def test_to_json() -> None:
-    p = Pipeline([1, 2, 3]).to_json()
-    assert p == '[\n  1,\n  2,\n  3\n]'
-    assert_type(p, str)
+    p1 = Pipeline([1, 2, 3]).to_json()
+    assert p1 == '[\n  1,\n  2,\n  3\n]'
+    assert_type(p1, str)
+        
+    p2_json = Pipeline([Vector2(1.0, 2.0)]).to_json()
+    assert p2_json == '[\n  {\n    "x": 1.0,\n    "y": 2.0\n  }\n]'
+    assert_type(p2_json, str)
+    
+def test_to_pformat() -> None:
+    p_str = Pipeline([Vector2(1.0, 2.0), Vector2(3.0, 4.0)]).to_pformat()
+    assert p_str == '(Vector2(x=1.0, y=2.0), Vector2(x=3.0, y=4.0))'
+    assert_type(p_str, str)
 
 def test_first() -> None:
     p = Pipeline([1, 2, 3]).first()

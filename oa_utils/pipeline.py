@@ -3,16 +3,25 @@ import functools
 import itertools
 import more_itertools
 import json
-from pprint import pprint
+from pprint import pprint, pformat
 from collections import defaultdict
 from typing import IO, Callable, Iterable, Literal, TypeVar, Any
+from dataclasses import dataclass
+
+@dataclass
+class Vector2:
+    """Used for testing."""
+    x: float
+    y: float
+
+def default_json_encoder(obj: Any) -> Any:
+    return obj.__dict__ if hasattr(obj, '__dict__') else obj
 
 T_co = TypeVar("T_co", covariant=True)
 T = TypeVar("T")
 U = TypeVar("U")
 V = TypeVar("V")
 K = TypeVar("K")
-
 
 class Pipeline(tuple[T_co, ...]):
     """Fluent wrapper around a homogenous variadic tuple.
@@ -231,7 +240,8 @@ class Pipeline(tuple[T_co, ...]):
 
     def print_json(self, label: str = "", end: str = "", 
                    stream: IO[str] | None = None, 
-                   indent: int | str | None = 2) -> Pipeline[T_co]:
+                   indent: int | str | None = 2,
+                   default: Callable[[Any], Any] = default_json_encoder) -> Pipeline[T_co]:
         """
         >>> Pipeline([1, 2, 3]).print_json()
         [
@@ -240,10 +250,19 @@ class Pipeline(tuple[T_co, ...]):
           3
         ]
         (1, 2, 3)
+        
+        >>> Pipeline([Vector2(1.0, 2.0)]).print_json()
+        [
+          {
+            "x": 1.0,
+            "y": 2.0
+          }
+        ]
+        (Vector2(x=1.0, y=2.0),)
         """
         if label:
             print(label, file=stream)
-        print(json.dumps(self, indent=indent), file=stream)
+        print(json.dumps(self, indent=indent, default=default), file=stream)
         if end:
             print(end, file=stream)
         return self
@@ -326,12 +345,29 @@ class Pipeline(tuple[T_co, ...]):
         """
         return dict(self)
 
-    def to_json(self, indent: int | str | None = 2) -> str:
+    def to_json(self, indent: int | str | None = 2, 
+                default: Callable[[Any], Any] = default_json_encoder) -> str:
         """
         >>> Pipeline([1, 2, 3]).to_json()
         '[\\n  1,\\n  2,\\n  3\\n]'
+        
+        >>> Pipeline([Vector2(1.0, 2.0)]).to_json()
+        '[\\n  {\\n    "x": 1.0,\\n    "y": 2.0\\n  }\\n]'
         """
-        return json.dumps(self, indent=indent)
+        return json.dumps(self, indent=indent, default=default)
+
+    def to_pformat(self, indent: int = 1, 
+                   width: int = 80, 
+                   depth: int | None = None, 
+                   compact: bool = False, 
+                   sort_dicts: bool = True, 
+                   underscore_numbers: bool = False) -> str:
+        """        
+        >>> Pipeline([Vector2(1.0, 2.0), Vector2(3.0, 4.0)]).to_pformat()
+        '(Vector2(x=1.0, y=2.0), Vector2(x=3.0, y=4.0))'
+        """
+        return pformat(self, indent=indent, width=width, depth=depth, compact=compact, 
+                       sort_dicts=sort_dicts, underscore_numbers=underscore_numbers)
 
     def first(self) -> T_co:
         """
