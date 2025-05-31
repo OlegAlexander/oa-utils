@@ -15,7 +15,7 @@ class Vector2:
     y: float
 
 def default_json_encoder(obj: Any) -> Any:
-    return obj.__dict__ if hasattr(obj, '__dict__') else obj
+    return vars(obj) if hasattr(obj, '__dict__') else str(obj)
 
 T_co = TypeVar("T_co", covariant=True)
 T = TypeVar("T")
@@ -24,8 +24,12 @@ V = TypeVar("V")
 K = TypeVar("K")
 
 class Pipeline(tuple[T_co, ...]):
-    """Fluent wrapper around a homogenous variadic tuple.
-    
+    """This class is useful for programming in the *collection pipeline* style.
+    It wraps a homogenous variadic tuple and exposes a fluent interface with 
+    common functional programming operations. Why a tuple and not a "lazy" iterator? 
+    Because a tuple is relatively immutable and because, in my opinion, 
+    reified collections are much easier to reason about than stateful iterators.
+        
     >>> (Pipeline(range(10))
     ... .filter(lambda x: x % 2 == 0)
     ... .map(lambda x: x * x)
@@ -34,28 +38,32 @@ class Pipeline(tuple[T_co, ...]):
     """
 
     def map(self, fn: Callable[[T_co], U]) -> Pipeline[U]:
-        """
+        """Apply *fn* to every element.
+        
         >>> Pipeline([1, 2, 3]).map(lambda x: x * 2)
         (2, 4, 6)
         """
         return Pipeline(map(fn, self))
 
     def filter(self, pred: Callable[[T_co], bool]) -> Pipeline[T_co]:
-        """
+        """Keep only elements for which *pred* returns True.
+        
         >>> Pipeline([1, 2, 3, 4]).filter(lambda x: x % 2 == 0)
         (2, 4)
         """
         return Pipeline(filter(pred, self))
 
     def zip(self, other: Iterable[U], strict: bool = False) -> Pipeline[tuple[T_co, U]]:
-        """
+        """Pair each element with the corresponding element from *other* (like :func:`zip`).
+        
         >>> Pipeline([1, 2]).zip([10, 20])
         ((1, 10), (2, 20))
         """
         return Pipeline(zip(self, other, strict=strict))
 
     def zip_longest(self, other: Iterable[U], fillvalue: V) -> Pipeline[tuple[T_co | V, U | V]]:
-        """
+        """Zip two iterables, filling missing positions with *fillvalue* (like :func:`itertools.zip_longest`).
+        
         >>> Pipeline([1, 2]).zip_longest([10, 20, 30], fillvalue=None)
         ((1, 10), (2, 20), (None, 30))
         
@@ -65,14 +73,16 @@ class Pipeline(tuple[T_co, ...]):
         return Pipeline(itertools.zip_longest(self, other, fillvalue=fillvalue))
 
     def zip_with(self, fn: Callable[[T_co, U], V], other: Iterable[U], strict: bool = False) -> Pipeline[V]:
-        """
+        """Zip with *other* and immediately combine pairs using *fn*.
+        
         >>> Pipeline([1, 2]).zip_with(lambda a, b: a + b, [10, 20])
         (11, 22)
         """
         return Pipeline(fn(a, b) for a, b in zip(self, other, strict=strict))
 
     def starmap(self: Pipeline[tuple[T, U]], fn: Callable[[T, U], V]) -> Pipeline[V]:
-        """
+        """Apply *fn* to tuples, unpacking each element (2‑tuple version of :func:`itertools.starmap`).
+        
         >>> Pipeline([(1, 2), (3, 4)]).starmap(lambda a, b: a + b)
         (3, 7)
         """
@@ -81,14 +91,16 @@ class Pipeline(tuple[T_co, ...]):
         return Pipeline(fn(a, b) for a, b in self) 
 
     def cartesian_product(self, other: Iterable[U]) -> Pipeline[tuple[T_co, U]]:
-        """
+        """Return the Cartesian product of *self* × *other*.
+        
         >>> Pipeline([1, 2]).cartesian_product([10, 20])
         ((1, 10), (1, 20), (2, 10), (2, 20))
         """
         return Pipeline(itertools.product(self, other))
 
     def sort(self, key: Callable[[T_co], Any] | None = None, reverse: bool = False) -> Pipeline[T_co]:
-        """
+        """Sort the elements.
+        
         >>> Pipeline([3, 1, 2]).sort()
         (1, 2, 3)
         
@@ -98,14 +110,16 @@ class Pipeline(tuple[T_co, ...]):
         return Pipeline(sorted(self, key=key, reverse=reverse)) # type: ignore
 
     def unique(self) -> Pipeline[T_co]:
-        """
+        """Remove duplicates while preserving order.
+        
         >>> Pipeline([1, 2, 2, 3]).unique()
         (1, 2, 3)
         """
         return Pipeline(dict.fromkeys(self))
     
     def slice(self, start: int = 0, end: int | None = None, step: int = 1) -> Pipeline[T_co]:
-        """
+        """Return a slice of the pipeline like *self[start:end:step]*.
+        
         >>> Pipeline([1, 2, 3, 4, 5]).slice(1, 4)
         (2, 3, 4)
         """
@@ -114,28 +128,32 @@ class Pipeline(tuple[T_co, ...]):
         return Pipeline(self[start:end:step])
 
     def take(self, n: int) -> Pipeline[T_co]:
-        """
+        """Return the first *n* items.
+        
         >>> Pipeline([1, 2, 3, 4]).take(2)
         (1, 2)
         """
         return Pipeline(self[:n])
     
     def drop(self, n: int) -> Pipeline[T_co]:
-        """
+        """Drop the first *n* items.
+
         >>> Pipeline([1, 2, 3, 4]).drop(2)
         (3, 4)
         """
         return Pipeline(self[n:])
 
     def enumerate(self, start: int = 0) -> Pipeline[tuple[int, T_co]]:
-        """
+        """Enumerate the pipeline, yielding (index, item) pairs.
+        
         >>> Pipeline(['a', 'b']).enumerate()
         ((0, 'a'), (1, 'b'))
         """
         return Pipeline(enumerate(self, start))
 
     def batch(self, n: int, strict: bool = False) -> Pipeline[Pipeline[T_co]]:
-        """
+        """Group the data into fixed‑size chunks. Like :func:`more_itertools.chunked`.
+        
         >>> Pipeline(range(1, 6)).batch(2)
         ((1, 2), (3, 4), (5,))
         """
@@ -145,7 +163,8 @@ class Pipeline(tuple[T_co, ...]):
     def batch_fill(self, n: int, 
                    fillvalue: U,
                    incomplete: Literal['fill', 'ignore', 'strict'] = 'fill') -> Pipeline[Pipeline[T_co | U]]:
-        """
+        """Batch with optional padding via *fillvalue* (delegate to :func:`more_itertools.grouper`).
+        
         >>> Pipeline(range(1, 6)).batch_fill(2, fillvalue=0)
         ((1, 2), (3, 4), (5, 0))
         """
@@ -153,7 +172,8 @@ class Pipeline(tuple[T_co, ...]):
                         self, n, incomplete=incomplete, fillvalue=fillvalue)])
 
     def flatten(self: Pipeline[Iterable[T]]) -> Pipeline[T]:
-        """
+        """Flatten one level of nesting.
+        
         >>> Pipeline([[1, 2], [3, 4]]).flatten()
         (1, 2, 3, 4)
         """
@@ -162,7 +182,8 @@ class Pipeline(tuple[T_co, ...]):
         return Pipeline(itertools.chain.from_iterable(self))
 
     def for_each(self, fn: Callable[[T_co], None]) -> Pipeline[T_co]:
-        """
+        """Call a side-effecting function for every element and return self.
+        
         >>> Pipeline([1, 2, 3]).for_each(print)
         1
         2
@@ -174,7 +195,8 @@ class Pipeline(tuple[T_co, ...]):
         return self
 
     def for_self(self, fn: Callable[[Pipeline[T_co]], None]) -> Pipeline[T_co]:
-        """
+        """Call *fn(self)* for side‑effects and return self.
+        
         >>> Pipeline([1, 2, 3]).for_self(lambda p: print(p.len()))
         3
         (1, 2, 3)
@@ -183,7 +205,9 @@ class Pipeline(tuple[T_co, ...]):
         return self
 
     def apply(self, fn: Callable[[Iterable[T_co]], Iterable[U]]) -> Pipeline[U]:
-        """
+        """Apply an external iterable‑to‑iterable function (e.g. from *itertools* or *more_itertools*).
+        To preserve type safety, it is recommended to use a type hint for *fn*.
+        
         >>> transpose: Callable[[Iterable[Iterable[int]]], Iterable[tuple[int, ...]]] = more_itertools.transpose
         >>> Pipeline([[1, 2, 3], [4, 5, 6]]).apply(transpose)
         ((1, 4), (2, 5), (3, 6))
@@ -199,7 +223,8 @@ class Pipeline(tuple[T_co, ...]):
               end: str | None = "\n",
               file: IO[str] | None = None,
               flush: bool = False) -> Pipeline[T_co]:
-        """
+        """Print the pipeline (optionally with *label*) and return *self*.
+        
         >>> Pipeline([1, 2, 3]).print("Numbers: ", end="\\n\\n")
         Numbers: (1, 2, 3)
         <BLANKLINE>
@@ -222,7 +247,8 @@ class Pipeline(tuple[T_co, ...]):
                compact: bool = False, 
                sort_dicts: bool = True, 
                underscore_numbers: bool = False) -> Pipeline[T_co]:
-        """
+        """Pretty‑print the pipeline with :pymeth:`pprint.pprint`.
+        
         >>> Pipeline([1, 2, 3]).pprint("Numbers:" , end="---------")
         Numbers:
         (1, 2, 3)
@@ -242,7 +268,8 @@ class Pipeline(tuple[T_co, ...]):
                    stream: IO[str] | None = None, 
                    indent: int | str | None = 2,
                    default: Callable[[Any], Any] = default_json_encoder) -> Pipeline[T_co]:
-        """
+        """Print the pipeline as JSON (with optional *label*).
+        
         >>> Pipeline([1, 2, 3]).print_json()
         [
           1,
@@ -268,42 +295,49 @@ class Pipeline(tuple[T_co, ...]):
         return self
 
     def append(self, item: T) -> Pipeline[T_co | T]:
-        """
+        """Return a new pipeline with *item* appended.
+        
         >>> Pipeline([1, 2]).append(3)
         (1, 2, 3)
         """
         return Pipeline(self + (item,))
 
     def prepend(self, item: T) -> Pipeline[T_co | T]:
-        """
+        """Return a new pipeline with *item* prepended.
+        
         >>> Pipeline([2, 3]).prepend(1)
         (1, 2, 3)
         """
         return Pipeline((item,) + self)
 
     def extend(self, items: Iterable[T_co]) -> Pipeline[T_co]:
-        """
+        """Concatenate *items* onto the end of a pipeline.
+        
         >>> Pipeline([1, 2]).extend([3, 4])
         (1, 2, 3, 4)
         """
         return Pipeline(self + tuple(items))
     
     def insert(self, index: int, item: T) -> Pipeline[T_co | T]:
-        """
+        """Insert an *item* at *index*.
+        
         >>> Pipeline([1, 2, 4]).insert(2, 3)
         (1, 2, 3, 4)
         """
         return Pipeline(self[:index] + (item,) + self[index:])
     
     def reverse(self) -> Pipeline[T_co]:
-        """
+        """Reverse the order of the elements.
+        
         >>> Pipeline([1, 2, 3]).reverse()
         (3, 2, 1)
         """
         return Pipeline(reversed(self))
 
     def group_by(self, key: Callable[[T_co], K]) -> Pipeline[tuple[K, Pipeline[T_co]]]:
-        """
+        """Group elements by *key* and return (key, subgroup) pairs.
+        Use to_dict() to convert the pairs to a dictionary.
+        
         >>> names = ['Roger', 'Alice', 'Adam', 'Bob']
         >>> Pipeline(names).group_by(lambda name: name[0])
         (('R', ('Roger',)), ('A', ('Alice', 'Adam')), ('B', ('Bob',)))
@@ -325,21 +359,24 @@ class Pipeline(tuple[T_co, ...]):
     # === Terminal methods ===
 
     def to_list(self) -> list[T_co]:
-        """
+        """Convert to a list`.
+        
         >>> Pipeline([1, 2, 3]).to_list()
         [1, 2, 3]
         """
         return list(self)
 
     def to_set(self) -> set[T_co]:
-        """
+        """Convert to a set, removing duplicates.
+        
         >>> Pipeline([1, 2, 3, 3]).to_set()
         {1, 2, 3}
         """
         return set(self)
 
     def to_dict(self: Pipeline[tuple[K, V]]) -> dict[K, V]:
-        """
+        """Convert a pipeline of (key, value) tuples to a dict.
+        
         >>> Pipeline([("a", 1), ("b", 2)]).to_dict()
         {'a': 1, 'b': 2}
         """
@@ -347,7 +384,8 @@ class Pipeline(tuple[T_co, ...]):
 
     def to_json(self, indent: int | str | None = 2, 
                 default: Callable[[Any], Any] = default_json_encoder) -> str:
-        """
+        """Serialize the pipeline to a JSON string.
+        
         >>> Pipeline([1, 2, 3]).to_json()
         '[\\n  1,\\n  2,\\n  3\\n]'
         
@@ -362,7 +400,8 @@ class Pipeline(tuple[T_co, ...]):
                    compact: bool = False, 
                    sort_dicts: bool = True, 
                    underscore_numbers: bool = False) -> str:
-        """        
+        """Return the pretty‑formatted string representation of the pipeline.
+                
         >>> Pipeline([Vector2(1.0, 2.0), Vector2(3.0, 4.0)]).to_pformat()
         '(Vector2(x=1.0, y=2.0), Vector2(x=3.0, y=4.0))'
         """
@@ -370,7 +409,7 @@ class Pipeline(tuple[T_co, ...]):
                        sort_dicts=sort_dicts, underscore_numbers=underscore_numbers)
 
     def first(self) -> T_co:
-        """
+        """Return the first element.
         >>> Pipeline([1, 2, 3]).first()
         1
         """
@@ -379,7 +418,8 @@ class Pipeline(tuple[T_co, ...]):
         return self[0]
     
     def last(self) -> T_co:
-        """
+        """Return the last element.
+        
         >>> Pipeline([1, 2, 3]).last()
         3
         """
@@ -388,14 +428,16 @@ class Pipeline(tuple[T_co, ...]):
         return self[-1]
 
     def reduce(self, fn: Callable[[V, T_co], V], initial: V) -> V:
-        """
+        """Reduce the pipeline to a single value using *fn*.
+        
         >>> Pipeline([104, 101, 108, 108, 111]).reduce(lambda acc, x: acc + chr(x), "")     
         'hello'
         """
         return functools.reduce(fn, self, initial)
 
     def reduce_non_empty(self, fn: Callable[[T_co, T_co], T_co]) -> T_co:
-        """
+        """Reduce a non-empty pipeline to a single value using *fn*.
+        
         >>> Pipeline([1, 2, 3]).reduce_non_empty(lambda acc, x: acc + x)
         6
         """
@@ -404,35 +446,40 @@ class Pipeline(tuple[T_co, ...]):
         return functools.reduce(fn, self)
 
     def len(self) -> int:
-        """
+        """Return the length of the pipeline.
+        
         >>> Pipeline([1, 2, 3]).len()
         3
         """
         return len(self)
     
     def min(self) -> T_co:
-        """
+        """Return the minimum element.
+        
         >>> Pipeline([3, 1, 2]).min()
         1
         """
         return min(self) # type: ignore 
     
     def max(self) -> T_co:
-        """
+        """Return the maximum element.
+        
         >>> Pipeline([3, 1, 2]).max()
         3
         """
         return max(self) # type: ignore
     
     def sum(self) -> T_co:
-        """
+        """Return the sum of the elements.
+        
         >>> Pipeline([1, 2, 3]).sum()
         6
         """
         return sum(self) # type: ignore
     
     def avg(self) -> float:
-        """
+        """Return the average of the elements.
+        
         >>> Pipeline([1, 2, 3]).avg()
         2.0
         """
@@ -441,7 +488,8 @@ class Pipeline(tuple[T_co, ...]):
         return sum(self) / len(self) # type: ignore
     
     def any(self) -> bool:
-        """
+        """Return True if any element is True.
+        
         >>> Pipeline([False, False, True]).any()
         True
         
@@ -451,7 +499,8 @@ class Pipeline(tuple[T_co, ...]):
         return any(self)
     
     def all(self) -> bool:
-        """
+        """Return True if all elements are True.
+        
         >>> Pipeline([True, True, True]).all()
         True
         
@@ -461,7 +510,8 @@ class Pipeline(tuple[T_co, ...]):
         return all(self)
     
     def contains(self, item: T) -> bool:
-        """
+        """Return True if *item* is in the pipeline.
+        
         >>> Pipeline([1, 2, 3]).contains(2)
         True
         

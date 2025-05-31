@@ -1,7 +1,7 @@
 [project]
 name = "oa-utils"
-version = "0.1.10"
-description = "Statically typed Python utilities."
+version = "0.1.11"
+description = "Statically typed Python utilities for functional programming."
 authors = [
     {name = "Oleg Alexander"}
 ]
