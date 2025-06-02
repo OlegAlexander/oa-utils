@@ -40,6 +40,11 @@ def test_zip_with() -> None:
     assert p == (11, 22)
     assert_type(p, Pipeline[int])
 
+def test_join_with() -> None:
+    p = Pipeline([1, 2, 3]).join_with(0)
+    assert p == (1, 0, 2, 0, 3)
+    assert_type(p, Pipeline[int])
+
 def test_starmap() -> None:
     p = Pipeline([(1, 2), (3, 4)]).starmap(lambda a, b: a + b)
     assert p == (3, 7)
@@ -75,9 +80,17 @@ def test_take() -> None:
     assert p == (1, 2)
     assert_type(p, Pipeline[int])
 
+    p = Pipeline([1, 2, 3, 4]).take(-1)
+    assert p == (1, 2, 3)
+    assert_type(p, Pipeline[int])
+
 def test_drop() -> None:
     p = Pipeline([1, 2, 3, 4]).drop(2)
     assert p == (3, 4)
+    assert_type(p, Pipeline[int])
+
+    p = Pipeline([1, 2, 3, 4]).drop(-3)
+    assert p == (2, 3, 4)
     assert_type(p, Pipeline[int])
 
 def test_enumerate() -> None:
@@ -149,6 +162,16 @@ def test_print_json() -> None:
     p2 = Pipeline([Vector2(1.0, 2.0)]).print_json()
     # Not checking the printed JSON, just that it returns the pipeline.
     assert p2 == (Vector2(x=1.0, y=2.0),)
+    assert_type(p2, Pipeline[Vector2])
+
+def test_print_table() -> None:
+    # We can’t check printed table output easily, but can check it returns the pipeline.
+    p1 = Pipeline([{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]).print_table()
+    assert p1 == ({'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25})
+    assert_type(p1, Pipeline[dict[str, object]])
+    
+    p2 = Pipeline([Vector2(1.0, 2.0), Vector2(3.0, 4.0)]).print_table()
+    assert p2 == (Vector2(x=1.0, y=2.0), Vector2(x=3.0, y=4.0))
     assert_type(p2, Pipeline[Vector2])
 
 def test_append() -> None:

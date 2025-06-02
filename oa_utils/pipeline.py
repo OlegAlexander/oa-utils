@@ -4,8 +4,9 @@ import itertools
 import more_itertools
 import json
 from pprint import pprint, pformat
+from tabulate import tabulate
 from collections import defaultdict
-from typing import IO, Callable, Iterable, Literal, TypeVar, Any
+from typing import IO, Callable, Iterable, Sequence, Literal, TypeVar, Any
 from dataclasses import dataclass
 
 @dataclass
@@ -80,8 +81,19 @@ class Pipeline(tuple[T_co, ...]):
         """
         return Pipeline(fn(a, b) for a, b in zip(self, other, strict=strict))
 
+    def join_with(self: Pipeline[T], separator: T) -> Pipeline[T]:
+        """Join elements with a *separator*.
+        
+        >>> Pipeline([1, 2, 3]).join_with(0)
+        (1, 0, 2, 0, 3)
+        """
+        if not self:
+            return Pipeline([])
+        return Pipeline(itertools.chain.from_iterable(
+            (item, separator) for item in self[:-1])).append(self[-1])
+
     def starmap(self: Pipeline[tuple[T, U]], fn: Callable[[T, U], V]) -> Pipeline[V]:
-        """Apply *fn* to tuples, unpacking each element (2‑tuple version of :func:`itertools.starmap`).
+        """Apply *fn* to tuples, unpacking each element (2-tuple version of :func:`itertools.starmap`).
         
         >>> Pipeline([(1, 2), (3, 4)]).starmap(lambda a, b: a + b)
         (3, 7)
@@ -91,7 +103,7 @@ class Pipeline(tuple[T_co, ...]):
         return Pipeline(fn(a, b) for a, b in self) 
 
     def cartesian_product(self, other: Iterable[U]) -> Pipeline[tuple[T_co, U]]:
-        """Return the Cartesian product of *self* × *other*.
+        """Return the Cartesian product of *self* x *other*.
         
         >>> Pipeline([1, 2]).cartesian_product([10, 20])
         ((1, 10), (1, 20), (2, 10), (2, 20))
@@ -132,6 +144,9 @@ class Pipeline(tuple[T_co, ...]):
         
         >>> Pipeline([1, 2, 3, 4]).take(2)
         (1, 2)
+
+        >>> Pipeline([1, 2, 3, 4]).take(-1)
+        (1, 2, 3)
         """
         return Pipeline(self[:n])
     
@@ -140,6 +155,9 @@ class Pipeline(tuple[T_co, ...]):
 
         >>> Pipeline([1, 2, 3, 4]).drop(2)
         (3, 4)
+
+        >>> Pipeline([1, 2, 3, 4]).drop(-3)
+        (2, 3, 4)
         """
         return Pipeline(self[n:])
 
@@ -152,7 +170,7 @@ class Pipeline(tuple[T_co, ...]):
         return Pipeline(enumerate(self, start))
 
     def batch(self, n: int, strict: bool = False) -> Pipeline[Pipeline[T_co]]:
-        """Group the data into fixed‑size chunks. Like :func:`more_itertools.chunked`.
+        """Group the data into fixed-size chunks. Like :func:`more_itertools.chunked`.
         
         >>> Pipeline(range(1, 6)).batch(2)
         ((1, 2), (3, 4), (5,))
@@ -163,7 +181,7 @@ class Pipeline(tuple[T_co, ...]):
     def batch_fill(self, n: int, 
                    fillvalue: U,
                    incomplete: Literal['fill', 'ignore', 'strict'] = 'fill') -> Pipeline[Pipeline[T_co | U]]:
-        """Batch with optional padding via *fillvalue* (delegate to :func:`more_itertools.grouper`).
+        """Batch with padding via *fillvalue* (delegate to :func:`more_itertools.grouper`).
         
         >>> Pipeline(range(1, 6)).batch_fill(2, fillvalue=0)
         ((1, 2), (3, 4), (5, 0))
@@ -195,7 +213,7 @@ class Pipeline(tuple[T_co, ...]):
         return self
 
     def for_self(self, fn: Callable[[Pipeline[T_co]], None]) -> Pipeline[T_co]:
-        """Call *fn(self)* for side‑effects and return self.
+        """Call *fn(self)* for its side-effects and return self.
         
         >>> Pipeline([1, 2, 3]).for_self(lambda p: print(p.len()))
         3
@@ -205,7 +223,7 @@ class Pipeline(tuple[T_co, ...]):
         return self
 
     def apply(self, fn: Callable[[Iterable[T_co]], Iterable[U]]) -> Pipeline[U]:
-        """Apply an external iterable‑to‑iterable function (e.g. from *itertools* or *more_itertools*).
+        """Apply an external iterable-to-iterable function (e.g. from *itertools* or *more_itertools*).
         To preserve type safety, it is recommended to use a type hint for *fn*.
         
         >>> transpose: Callable[[Iterable[Iterable[int]]], Iterable[tuple[int, ...]]] = more_itertools.transpose
@@ -223,7 +241,7 @@ class Pipeline(tuple[T_co, ...]):
               end: str | None = "\n",
               file: IO[str] | None = None,
               flush: bool = False) -> Pipeline[T_co]:
-        """Print the pipeline (optionally with *label*) and return *self*.
+        """Print the pipeline (optionally with a *label*) and return *self*.
         
         >>> Pipeline([1, 2, 3]).print("Numbers: ", end="\\n\\n")
         Numbers: (1, 2, 3)
@@ -247,7 +265,7 @@ class Pipeline(tuple[T_co, ...]):
                compact: bool = False, 
                sort_dicts: bool = True, 
                underscore_numbers: bool = False) -> Pipeline[T_co]:
-        """Pretty‑print the pipeline with :pymeth:`pprint.pprint`.
+        """Pretty-print the pipeline with :pymeth:`pprint.pprint`.
         
         >>> Pipeline([1, 2, 3]).pprint("Numbers:" , end="---------")
         Numbers:
@@ -268,7 +286,7 @@ class Pipeline(tuple[T_co, ...]):
                    stream: IO[str] | None = None, 
                    indent: int | str | None = 2,
                    default: Callable[[Any], Any] = default_json_encoder) -> Pipeline[T_co]:
-        """Print the pipeline as JSON (with optional *label*).
+        """Print the pipeline as JSON (with an optional *label*).
         
         >>> Pipeline([1, 2, 3]).print_json()
         [
@@ -290,6 +308,58 @@ class Pipeline(tuple[T_co, ...]):
         if label:
             print(label, file=stream)
         print(json.dumps(self, indent=indent, default=default), file=stream)
+        if end:
+            print(end, file=stream)
+        return self
+
+    def print_table(self: Pipeline[T_co], label: str = "", end: str = "",
+                    stream: IO[str] | None = None,
+                    headers: str | dict[Any, str] | Sequence[str] = "keys",
+                    tablefmt: str = "github",
+                    floatfmt: str | Iterable[str] = "g",
+                    intfmt: str | Iterable[str] = "",
+                    numalign: str | None = "default",
+                    stralign: str | None = "default",
+                    missingval: str | Iterable[str] = "",
+                    showindex: str | bool | Iterable[Any] = "default",
+                    disable_numparse: bool | Iterable[int] = False,
+                    colalign: Iterable[str | None] | None = None,
+                    maxcolwidths: int | Iterable[int | None] | None = None,
+                    rowalign: str | Iterable[str] | None = None,
+                    maxheadercolwidths: int | Iterable[int] | None = None) -> Pipeline[T_co]:
+        """Print a pipeline of "rows" as a table (with an optional *label*).
+        
+        >>> Pipeline([{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]).print_table()
+        | name   |   age |
+        |--------|-------|
+        | Alice  |    30 |
+        | Bob    |    25 |
+        ({'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25})
+        
+        
+        >>> Pipeline([Vector2(1.0, 2.0), Vector2(3.0, 4.0)]).print_table(showindex=True)
+        |    |   x |   y |
+        |----|-----|-----|
+        |  0 |   1 |   2 |
+        |  1 |   3 |   4 |
+        (Vector2(x=1.0, y=2.0), Vector2(x=3.0, y=4.0))
+        """
+        if label:
+            print(label, file=stream)
+        print(tabulate(self, # type: ignore
+                       headers=headers, 
+                       tablefmt=tablefmt, 
+                       floatfmt=floatfmt, 
+                       intfmt=intfmt, 
+                       numalign=numalign, 
+                       stralign=stralign, 
+                       missingval=missingval, 
+                       showindex=showindex, 
+                       disable_numparse=disable_numparse,
+                       colalign=colalign,
+                       maxcolwidths=maxcolwidths,
+                       rowalign=rowalign,
+                       maxheadercolwidths=maxheadercolwidths), file=stream)
         if end:
             print(end, file=stream)
         return self
@@ -400,7 +470,7 @@ class Pipeline(tuple[T_co, ...]):
                    compact: bool = False, 
                    sort_dicts: bool = True, 
                    underscore_numbers: bool = False) -> str:
-        """Return the pretty‑formatted string representation of the pipeline.
+        """Return the pretty-formatted string representation of the pipeline.
                 
         >>> Pipeline([Vector2(1.0, 2.0), Vector2(3.0, 4.0)]).to_pformat()
         '(Vector2(x=1.0, y=2.0), Vector2(x=3.0, y=4.0))'

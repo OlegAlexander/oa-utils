@@ -15,4 +15,4 @@ result = (Pipeline(range(10))
             .sum()) # 120
 ```
 
-See `pipeline.py` for docstrings of every method.
+See [pipeline.py](https://github.com/OlegAlexander/oa-utils/blob/main/oa_utils/pipeline.py) for docstrings and doctests of every method.
