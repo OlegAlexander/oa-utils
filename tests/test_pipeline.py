@@ -1,9 +1,10 @@
 # C:/Python310/python.exe -m pytest
-from oa_utils.pipeline import Pipeline, Vector2
+from oa_utils.pipeline import Pipeline, Vector2, unpack
 import itertools
 import more_itertools
 from typing import Literal, Iterable, Callable
 from typing_extensions import assert_type
+import pytest
 
 def test_example_usage() -> None:
     p = Pipeline(range(10)).filter(lambda x: x % 2 == 0).map(lambda x: x * x).sum()
@@ -45,8 +46,17 @@ def test_join_with() -> None:
     assert p == (1, 0, 2, 0, 3)
     assert_type(p, Pipeline[int])
 
-def test_starmap() -> None:
-    p = Pipeline([(1, 2), (3, 4)]).starmap(lambda a, b: a + b)
+def test_split_at() -> None:
+    p1 = Pipeline([1, 2, 0, 3, 4, 0, 5]).split_at(lambda x: x == 0)
+    assert p1 == ((1, 2), (3, 4), (5,))
+    assert_type(p1, Pipeline[Pipeline[int]])
+
+    p2 = Pipeline([1, 2, 0, 3, 4, 0, 5]).split_at(lambda x: x == 0, keep_separator=True)
+    assert p2 == ((1, 2), (0,), (3, 4), (0,), (5,))
+    assert_type(p2, Pipeline[Pipeline[int]])
+
+def test_unpack_map() -> None:
+    p = Pipeline([(1, 2), (3, 4)]).map(unpack(lambda a, b: a + b))
     assert p == (3, 7)
     assert_type(p, Pipeline[int])
 
@@ -54,6 +64,11 @@ def test_cartesian_product() -> None:
     p = Pipeline([1, 2]).cartesian_product([10, 20])
     assert p == ((1, 10), (1, 20), (2, 10), (2, 20))
     assert_type(p, Pipeline[tuple[int, int]])
+
+def test_outer_product() -> None:
+    p = Pipeline([1, 2, 3]).outer_product(lambda a, b: a * b, [1, 2, 3])
+    assert p == ((1, 2, 3), (2, 4, 6), (3, 6, 9))
+    assert_type(p, Pipeline[Pipeline[int]])
 
 def test_sort_no_reverse() -> None:
     p = Pipeline([3, 1, 2]).sort()
@@ -174,24 +189,14 @@ def test_print_table() -> None:
     assert p2 == (Vector2(x=1.0, y=2.0), Vector2(x=3.0, y=4.0))
     assert_type(p2, Pipeline[Vector2])
 
-def test_append() -> None:
-    p = Pipeline([1, 2]).append(3)
-    assert p == (1, 2, 3)
-    assert_type(p, Pipeline[int])
-
-def test_prepend() -> None:
-    p = Pipeline([2, 3]).prepend(1)
-    assert p == (1, 2, 3)
-    assert_type(p, Pipeline[int])
-
 def test_extend() -> None:
     p = Pipeline([1, 2]).extend([3, 4])
     assert p == (1, 2, 3, 4)
     assert_type(p, Pipeline[int])
 
-def test_insert() -> None:
-    p = Pipeline([1, 2, 4]).insert(2, 3)
-    assert p == (1, 2, 3, 4)
+def test_insert_at() -> None:
+    p = Pipeline([1, 2, 5]).insert_at(2, [3, 4])
+    assert p == (1, 2, 3, 4, 5)
     assert_type(p, Pipeline[int])
 
 def test_reverse() -> None:
@@ -214,7 +219,36 @@ def test_group_by() -> None:
     p3 = Pipeline(['Roger', 'Alice', 'Adam', 'Bob']).group_by(lambda name: name[0])
     assert p3 == (('R', ('Roger',)), ('A', ('Alice', 'Adam')), ('B', ('Bob',)))
     assert_type(p3, Pipeline[tuple[str, Pipeline[str]]])
+
+def test_group_keys() -> None:
+    names = ['Roger', 'Alice', 'Adam', 'Bob']
+    p = Pipeline(names).group_by(lambda name: name[0]).map(lambda group: group[0])  
+    assert p == ('R', 'A', 'B')
+    assert_type(p, Pipeline[str])
     
+def test_group_values() -> None:
+    names = ['Roger', 'Alice', 'Adam', 'Bob']
+    p = Pipeline(names).group_by(lambda name: name[0]).map(lambda group: group[1])
+    assert p == (('Roger',), ('Alice', 'Adam'), ('Bob',))
+    assert_type(p, Pipeline[Pipeline[str]])
+
+def test_get_group() -> None:
+    names = ['Roger', 'Alice', 'Adam', 'Bob']
+    grouped = Pipeline(names).group_by(lambda name: name[0])
+    p = grouped.to_dict()['A']
+    assert p == ('Alice', 'Adam')
+    assert_type(p, Pipeline[str])
+
+    # Test KeyError for non-existent group
+    with pytest.raises(KeyError):
+        grouped.to_dict()['Z']
+
+def test_unpack_filter() -> None:
+    names = ['Roger', 'Alice', 'Adam', 'Bob']
+    p = Pipeline(names).group_by(lambda name: len(name)).filter(unpack(lambda k, v: k >= 4))
+    assert p == ((5, ('Roger', 'Alice')), (4, ('Adam',)))
+    assert_type(p, Pipeline[tuple[int, Pipeline[str]]])
+        
 def test_to_list() -> None:
     p = Pipeline([1, 2, 3]).to_list()
     assert p == [1, 2, 3]
@@ -243,6 +277,11 @@ def test_to_pformat() -> None:
     p_str = Pipeline([Vector2(1.0, 2.0), Vector2(3.0, 4.0)]).to_pformat()
     assert p_str == '(Vector2(x=1.0, y=2.0), Vector2(x=3.0, y=4.0))'
     assert_type(p_str, str)
+
+def test_to_table() -> None:
+    p = Pipeline([{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]).to_table()
+    assert p == '| name   |   age |\n|--------|-------|\n| Alice  |    30 |\n| Bob    |    25 |'
+    assert_type(p, str)
 
 def test_first() -> None:
     p = Pipeline([1, 2, 3]).first()
@@ -318,3 +357,26 @@ def test_contains_false() -> None:
     p = Pipeline([1, 2, 3]).contains(4)
     assert p is False
     assert_type(p, Literal[False])
+
+def test_is_empty() -> None:
+    p = Pipeline([]).is_empty()
+    assert p is True
+    assert_type(p, Literal[True])
+
+    p = Pipeline([1, 2, 3]).is_empty()
+    assert p is False
+    assert_type(p, Literal[False])
+    
+def test_unzip() -> None:
+    p1, p2 = Pipeline([1, 2, 3]).zip([10, 20, 30]).unzip()
+    assert p1 == (1, 2, 3)
+    assert p2 == (10, 20, 30)
+    assert_type(p1, Pipeline[int])
+    assert_type(p2, Pipeline[int])
+
+    names = ['Alice', 'Bob', 'Charlie']
+    keys, values = Pipeline(names).group_by(lambda name: name[0]).unzip()
+    assert keys == ('A', 'B', 'C')
+    assert values == (('Alice',), ('Bob',), ('Charlie',))
+    assert_type(keys, Pipeline[str])
+    assert_type(values, Pipeline[Pipeline[str]])

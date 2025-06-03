@@ -9,14 +9,7 @@ from collections import defaultdict
 from typing import IO, Callable, Iterable, Sequence, Literal, TypeVar, Any
 from dataclasses import dataclass
 
-@dataclass
-class Vector2:
-    """Used for testing."""
-    x: float
-    y: float
-
-def default_json_encoder(obj: Any) -> Any:
-    return vars(obj) if hasattr(obj, '__dict__') else str(obj)
+default_json_encoder = lambda obj: vars(obj) if hasattr(obj, '__dict__') else str(obj)
 
 T_co = TypeVar("T_co", covariant=True)
 T = TypeVar("T")
@@ -90,17 +83,20 @@ class Pipeline(tuple[T_co, ...]):
         if not self:
             return Pipeline([])
         return Pipeline(itertools.chain.from_iterable(
-            (item, separator) for item in self[:-1])).append(self[-1])
+            (item, separator) for item in self[:-1])).extend([self[-1]])
 
-    def starmap(self: Pipeline[tuple[T, U]], fn: Callable[[T, U], V]) -> Pipeline[V]:
-        """Apply *fn* to tuples, unpacking each element (2-tuple version of :func:`itertools.starmap`).
+    def split_at(self, pred: Callable[[T_co], bool], maxsplit: int = -1, 
+                 keep_separator: bool = False) -> Pipeline[Pipeline[T_co]]:
+        """Split the pipeline at every occurrence of an element for which *pred* returns True.
         
-        >>> Pipeline([(1, 2), (3, 4)]).starmap(lambda a, b: a + b)
-        (3, 7)
+        >>> Pipeline([1, 2, 0, 3, 4, 0, 5]).split_at(lambda x: x == 0)
+        ((1, 2), (3, 4), (5,))
+        
+        >>> Pipeline([1, 2, 0, 3, 4, 0, 5]).split_at(lambda x: x == 0, keep_separator=True)
+        ((1, 2), (0,), (3, 4), (0,), (5,))
         """
-        if not all(isinstance(item, tuple) and len(item) == 2 for item in self):
-            raise ValueError("starmap requires a Pipeline of tuples with 2 elements")
-        return Pipeline(fn(a, b) for a, b in self) 
+        return Pipeline(Pipeline(batch) for batch in more_itertools.split_at(
+            self, pred, maxsplit=maxsplit, keep_separator=keep_separator))
 
     def cartesian_product(self, other: Iterable[U]) -> Pipeline[tuple[T_co, U]]:
         """Return the Cartesian product of *self* x *other*.
@@ -109,6 +105,14 @@ class Pipeline(tuple[T_co, ...]):
         ((1, 10), (1, 20), (2, 10), (2, 20))
         """
         return Pipeline(itertools.product(self, other))
+
+    def outer_product(self, fn: Callable[[T_co, U], V], other: Iterable[U]) -> Pipeline[Pipeline[V]]:
+        """Return the outer product of *self* x *other* using *fn* to combine pairs.
+        
+        >>> Pipeline([1, 2, 3]).outer_product(lambda a, b: a * b, [1, 2, 3])
+        ((1, 2, 3), (2, 4, 6), (3, 6, 9))
+        """
+        return Pipeline(Pipeline(row) for row in more_itertools.outer_product(func=fn, xs=self, ys=other))
 
     def sort(self, key: Callable[[T_co], Any] | None = None, reverse: bool = False) -> Pipeline[T_co]:
         """Sort the elements.
@@ -327,7 +331,7 @@ class Pipeline(tuple[T_co, ...]):
                     maxcolwidths: int | Iterable[int | None] | None = None,
                     rowalign: str | Iterable[str] | None = None,
                     maxheadercolwidths: int | Iterable[int] | None = None) -> Pipeline[T_co]:
-        """Print a pipeline of "rows" as a table (with an optional *label*).
+        """Pretty-print a pipeline of "rows" as a table using :func:`tabulate`.
         
         >>> Pipeline([{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]).print_table()
         | name   |   age |
@@ -335,7 +339,6 @@ class Pipeline(tuple[T_co, ...]):
         | Alice  |    30 |
         | Bob    |    25 |
         ({'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25})
-        
         
         >>> Pipeline([Vector2(1.0, 2.0), Vector2(3.0, 4.0)]).print_table(showindex=True)
         |    |   x |   y |
@@ -364,37 +367,21 @@ class Pipeline(tuple[T_co, ...]):
             print(end, file=stream)
         return self
 
-    def append(self, item: T) -> Pipeline[T_co | T]:
-        """Return a new pipeline with *item* appended.
-        
-        >>> Pipeline([1, 2]).append(3)
-        (1, 2, 3)
-        """
-        return Pipeline(self + (item,))
-
-    def prepend(self, item: T) -> Pipeline[T_co | T]:
-        """Return a new pipeline with *item* prepended.
-        
-        >>> Pipeline([2, 3]).prepend(1)
-        (1, 2, 3)
-        """
-        return Pipeline((item,) + self)
-
     def extend(self, items: Iterable[T_co]) -> Pipeline[T_co]:
-        """Concatenate *items* onto the end of a pipeline.
+        """Return a new pipeline with *items* appended.
         
         >>> Pipeline([1, 2]).extend([3, 4])
         (1, 2, 3, 4)
         """
         return Pipeline(self + tuple(items))
     
-    def insert(self, index: int, item: T) -> Pipeline[T_co | T]:
-        """Insert an *item* at *index*.
+    def insert_at(self, index: int, items: Iterable[T_co]) -> Pipeline[T_co]:
+        """Insert *items* at *index*.
         
-        >>> Pipeline([1, 2, 4]).insert(2, 3)
-        (1, 2, 3, 4)
+        >>> Pipeline([1, 2, 5]).insert_at(2, [3, 4])
+        (1, 2, 3, 4, 5)
         """
-        return Pipeline(self[:index] + (item,) + self[index:])
+        return Pipeline(self[:index] + tuple(items) + self[index:])
     
     def reverse(self) -> Pipeline[T_co]:
         """Reverse the order of the elements.
@@ -477,6 +464,40 @@ class Pipeline(tuple[T_co, ...]):
         """
         return pformat(self, indent=indent, width=width, depth=depth, compact=compact, 
                        sort_dicts=sort_dicts, underscore_numbers=underscore_numbers)
+
+    def to_table(self: Pipeline[T_co], 
+                 headers: str | dict[Any, str] | Sequence[str] = "keys",
+                 tablefmt: str = "github",
+                 floatfmt: str | Iterable[str] = "g",
+                 intfmt: str | Iterable[str] = "",
+                 numalign: str | None = "default",
+                 stralign: str | None = "default",
+                 missingval: str | Iterable[str] = "",
+                 showindex: str | bool | Iterable[Any] = "default",
+                 disable_numparse: bool | Iterable[int] = False,
+                 colalign: Iterable[str | None] | None = None,
+                 maxcolwidths: int | Iterable[int | None] | None = None,
+                 rowalign: str | Iterable[str] | None = None,
+                 maxheadercolwidths: int | Iterable[int] | None = None) -> str:
+        """Convert the pipeline to a formatted table string using :func:`tabulate`.
+        
+        >>> Pipeline([{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]).to_table()
+        '| name   |   age |\\n|--------|-------|\\n| Alice  |    30 |\\n| Bob    |    25 |'
+        """
+        return tabulate(self, # type: ignore
+                        headers=headers, 
+                        tablefmt=tablefmt, 
+                        floatfmt=floatfmt, 
+                        intfmt=intfmt, 
+                        numalign=numalign, 
+                        stralign=stralign, 
+                        missingval=missingval, 
+                        showindex=showindex, 
+                        disable_numparse=disable_numparse,
+                        colalign=colalign,
+                        maxcolwidths=maxcolwidths,
+                        rowalign=rowalign,
+                        maxheadercolwidths=maxheadercolwidths)
 
     def first(self) -> T_co:
         """Return the first element.
@@ -589,6 +610,53 @@ class Pipeline(tuple[T_co, ...]):
         False
         """
         return item in self
+
+    def is_empty(self) -> bool:
+        """Return True if the pipeline is empty.
+        
+        >>> Pipeline([]).is_empty()
+        True
+        
+        >>> Pipeline([1, 2]).is_empty()
+        False
+        """
+        return len(self) == 0
+
+    def unzip(self: Pipeline[tuple[T, U]]) -> tuple[Pipeline[T], Pipeline[U]]:
+        """Opposite of zip. Unzip a pipeline of (a, b) pairs into a pair of pipelines.
+        Can be used for extracting keys and values from a grouped pipeline.
+        
+        >>> Pipeline([1, 2, 3]).zip([10, 20, 30]).unzip()
+        ((1, 2, 3), (10, 20, 30))
+        
+        >>> names = ['Alice', 'Bob', 'Charlie']
+        >>> keys, values = Pipeline(names).group_by(lambda name: name[0]).unzip()
+        >>> keys
+        ('A', 'B', 'C')
+        >>> values
+        (('Alice',), ('Bob',), ('Charlie',))
+        """
+        return Pipeline(self).map(lambda x: x[0]), Pipeline(self).map(lambda x: x[1])
+
+# === Helpers ===
+
+@dataclass
+class Vector2:
+    """Used for testing."""
+    x: float
+    y: float
+
+def unpack(fn: Callable[[T, U], V]) -> Callable[[tuple[T, U]], V]:
+    """Returns a function that unpacks a 2-tuple and applies a binary function to its elements.
+    Useful for functions that expect two arguments but you have a tuple.
+    
+    >>> Pipeline([(1, 2), (3, 4)]).map(unpack(lambda a, b: a + b))
+    (3, 7)
+    """
+    def wrapper(pair: tuple[T, U]) -> V:
+        a, b = pair
+        return fn(a, b)
+    return wrapper
 
 if __name__ == "__main__":
     # Interpreter usage: 
