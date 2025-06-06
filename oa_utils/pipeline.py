@@ -439,6 +439,14 @@ class Pipeline(tuple[T_co, ...]):
         """
         return dict(self)
 
+    def to_str(self, separator: str = '') -> str:
+        """Convert each element to a string and join them with the *separator*.
+        
+        >>> Pipeline([1, 2, 3]).to_str(', ')
+        '1, 2, 3'
+        """
+        return separator.join(self.map(str))
+        
     def to_json(self, indent: int | str | None = 2, 
                 default: Callable[[Any], Any] = default_json_encoder) -> str:
         """Serialize the pipeline to a JSON string.

@@ -264,6 +264,11 @@ def test_to_dict() -> None:
     assert p == {"a": 1, "b": 2}
     assert_type(p, dict[str, int])
 
+def test_to_str() -> None:
+    p = Pipeline([1, 2, 3]).to_str(', ')
+    assert p == '1, 2, 3'
+    assert_type(p, str)
+
 def test_to_json() -> None:
     p1 = Pipeline([1, 2, 3]).to_json()
     assert p1 == '[\n  1,\n  2,\n  3\n]'
