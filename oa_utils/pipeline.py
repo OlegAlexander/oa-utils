@@ -203,6 +203,17 @@ class Pipeline(tuple[T_co, ...]):
             raise ValueError("flatten requires a Pipeline of Iterables")
         return Pipeline(itertools.chain.from_iterable(self))
 
+    def flatmap(self, fn: Callable[[T_co], Iterable[U]]) -> Pipeline[U]:
+        """Map each element to an iterable and flatten the result.
+        
+        >>> Pipeline([1, 2, 3]).flatmap(lambda x: [x] * 2)
+        (1, 1, 2, 2, 3, 3)
+        
+        >>> Pipeline([1, 2, 3]).flatmap(lambda x: range(x))
+        (0, 0, 1, 0, 1, 2)
+        """
+        return self.map(fn).flatten()
+
     def for_each(self, fn: Callable[[T_co], None]) -> Pipeline[T_co]:
         """Call a side-effecting function for every element and return self.
         
@@ -608,16 +619,19 @@ class Pipeline(tuple[T_co, ...]):
         """
         return all(self)
     
-    def contains(self, item: T) -> bool:
-        """Return True if *item* is in the pipeline.
+    def contains(self, pred: Callable[[T_co], bool]) -> bool:
+        """Return True if any element passes the predicate.
         
-        >>> Pipeline([1, 2, 3]).contains(2)
+        >>> Pipeline([1, 2, 3]).contains(lambda x: x == 2)
         True
         
-        >>> Pipeline([1, 2, 3]).contains(4)
+        >>> Pipeline([1, 2, 3]).contains(lambda x: x > 3)
         False
         """
-        return item in self
+        for item in self:
+            if pred(item):
+                return True
+        return False
 
     def is_empty(self) -> bool:
         """Return True if the pipeline is empty.

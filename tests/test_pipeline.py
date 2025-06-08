@@ -128,6 +128,15 @@ def test_flatten() -> None:
     assert p == (1, 2, 3, 4)
     assert_type(p, Pipeline[int])
 
+def test_flatmap() -> None:
+    p1 = Pipeline([1, 2, 3]).flatmap(lambda x: [x] * 2)
+    assert p1 == (1, 1, 2, 2, 3, 3)
+    assert_type(p1, Pipeline[int])
+    
+    p2 = Pipeline([1, 2, 3]).flatmap(lambda x: range(x))
+    assert p2 == (0, 0, 1, 0, 1, 2)
+    assert_type(p2, Pipeline[int])    
+
 def test_for_each() -> None:
     # Not testing the printed output, but ensuring it returns the pipeline.
     p = Pipeline([1, 2, 3]).for_each(print)
@@ -354,12 +363,12 @@ def test_all_false() -> None:
     assert_type(p, Literal[False])
 
 def test_contains_true() -> None:
-    p = Pipeline([1, 2, 3]).contains(2)
+    p = Pipeline([1, 2, 3]).contains(lambda x: x == 2)
     assert p is True
     assert_type(p, Literal[True])
 
 def test_contains_false() -> None:
-    p = Pipeline([1, 2, 3]).contains(4)
+    p = Pipeline([1, 2, 3]).contains(lambda x: x > 3)
     assert p is False
     assert_type(p, Literal[False])
 
