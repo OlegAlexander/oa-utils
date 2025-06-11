@@ -2,14 +2,18 @@
 from oa_utils.pipeline import Pipeline, Vector2, unpack
 import itertools
 import more_itertools
-from typing import Literal, Iterable, Callable
+from typing import Literal, Iterable, Callable, Any
 from typing_extensions import assert_type
 import pytest
 
 def test_example_usage() -> None:
-    p = Pipeline(range(10)).filter(lambda x: x % 2 == 0).map(lambda x: x * x).sum()
-    assert p == 120
-    assert_type(p, int)
+    hamming_distance = (
+        Pipeline("karolin") # ('k', 'a', 'r', 'o', 'l', 'i', 'n')
+        .zip_with(lambda a, b: int(a != b), "kathrin") # (0, 0, 1, 1, 1, 0, 0)
+        .sum() # 3
+    )
+    assert hamming_distance == 3
+    assert_type(hamming_distance, int)
 
 def test_map() -> None:
     p = Pipeline([1, 2, 3]).map(lambda x: x * 2)
@@ -160,6 +164,15 @@ def test_apply() -> None:
     assert p2 == ((1, 2), (2, 3))
     assert_type(p2, Pipeline[tuple[int, int]])
 
+def test_transpose() -> None:
+    p1 = Pipeline[list[Any]]([["Roger", "Alice", "Bob"], [24, 35, 60]]).transpose()
+    assert p1 == (('Roger', 24), ('Alice', 35), ('Bob', 60))
+    assert_type(p1, Pipeline[Pipeline[Any]])
+    
+    p2 = Pipeline([[1, 2, 3], [4, 5, 6]]).transpose()
+    assert p2 == ((1, 4), (2, 5), (3, 6))
+    assert_type(p2, Pipeline[Pipeline[int]])
+
 def test_print() -> None:
     # We can’t check printed text easily, but can check it returns the pipeline.
     p = Pipeline([1, 2, 3]).print("Numbers: ", end="\n\n")
@@ -298,12 +311,12 @@ def test_to_table() -> None:
     assert_type(p, str)
 
 def test_first() -> None:
-    p = Pipeline([1, 2, 3]).first()
+    p = Pipeline([1, 2, 3])[0]
     assert p == 1
     assert_type(p, int)
 
 def test_last() -> None:
-    p = Pipeline([1, 2, 3]).last()
+    p = Pipeline([1, 2, 3])[-1]
     assert p == 3
     assert_type(p, int)
 

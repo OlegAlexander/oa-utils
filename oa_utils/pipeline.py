@@ -22,13 +22,17 @@ class Pipeline(tuple[T_co, ...]):
     It wraps a homogenous variadic tuple and exposes a fluent interface with 
     common functional programming operations. Why a tuple and not a "lazy" iterator? 
     Because a tuple is relatively immutable and because, in my opinion, 
-    reified collections are much easier to reason about than stateful iterators.
+    reified collections are much easier to reason about than stateful iterators
+    (at the expense of performance).
         
-    >>> (Pipeline(range(10))
-    ... .filter(lambda x: x % 2 == 0)
-    ... .map(lambda x: x * x)
-    ... .sum())                      
-    120
+    >>> hamming_distance = (
+    ...     Pipeline("karolin") # ('k', 'a', 'r', 'o', 'l', 'i', 'n')
+    ...     .zip_with(lambda a, b: int(a != b), "kathrin") # (0, 0, 1, 1, 1, 0, 0)
+    ...     .sum() # 3
+    ... )
+    
+    >>> hamming_distance
+    3
     """
 
     def map(self, fn: Callable[[T_co], U]) -> Pipeline[U]:
@@ -80,7 +84,7 @@ class Pipeline(tuple[T_co, ...]):
         >>> Pipeline([1, 2, 3]).join_with(0)
         (1, 0, 2, 0, 3)
         """
-        if not self:
+        if self.is_empty():
             return Pipeline([])
         return Pipeline(itertools.chain.from_iterable(
             (item, separator) for item in self[:-1])).extend([self[-1]])
@@ -250,6 +254,17 @@ class Pipeline(tuple[T_co, ...]):
         ((1, 2), (2, 3))
         """
         return Pipeline(fn(self))
+
+    def transpose(self: Pipeline[Iterable[T]]) -> Pipeline[Pipeline[T]]:
+        """Transpose a pipeline of iterables (like :func:`more_itertools.transpose`).
+        
+        >>> Pipeline([["Roger", "Alice", "Bob"], [24, 35, 60]]).transpose()
+        (('Roger', 24), ('Alice', 35), ('Bob', 60))
+        
+        >>> Pipeline([[1, 2, 3], [4, 5, 6]]).transpose()
+        ((1, 4), (2, 5), (3, 6))
+        """
+        return Pipeline(Pipeline(row) for row in more_itertools.transpose(self))   
 
     def print(self, label: str = "", 
               label_only: bool = False,
@@ -518,25 +533,6 @@ class Pipeline(tuple[T_co, ...]):
                         rowalign=rowalign,
                         maxheadercolwidths=maxheadercolwidths)
 
-    def first(self) -> T_co:
-        """Return the first element.
-        >>> Pipeline([1, 2, 3]).first()
-        1
-        """
-        if not self:
-            raise IndexError("Pipeline is empty")
-        return self[0]
-    
-    def last(self) -> T_co:
-        """Return the last element.
-        
-        >>> Pipeline([1, 2, 3]).last()
-        3
-        """
-        if not self:
-            raise IndexError("Pipeline is empty")
-        return self[-1]
-
     def reduce(self, fn: Callable[[V, T_co], V], initial: V) -> V:
         """Reduce the pipeline to a single value using *fn*.
         
@@ -551,7 +547,7 @@ class Pipeline(tuple[T_co, ...]):
         >>> Pipeline([1, 2, 3]).reduce_non_empty(lambda acc, x: acc + x)
         6
         """
-        if not self:
+        if self.is_empty():
             raise ValueError("Pipeline is empty")
         return functools.reduce(fn, self)
 
@@ -593,7 +589,7 @@ class Pipeline(tuple[T_co, ...]):
         >>> Pipeline([1, 2, 3]).avg()
         2.0
         """
-        if not self:
+        if self.is_empty():
             raise ValueError("Pipeline is empty")
         return sum(self) / len(self) # type: ignore
     
@@ -682,7 +678,7 @@ def unpack(fn: Callable[[T, U], V]) -> Callable[[tuple[T, U]], V]:
 
 if __name__ == "__main__":
     # Interpreter usage: 
-    # from importlib import reload; import oa_utils.pipeline; reload(oa_utils.pipeline); from oa_utils.pipeline import Pipeline
+    # from importlib import reload; import oa_utils.pipeline; reload(oa_utils.pipeline); from oa_utils.pipeline import Pipeline, unpack
     import doctest
     doctest.testmod()
     
