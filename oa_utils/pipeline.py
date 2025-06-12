@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import IO, Callable, Iterable, Sequence, Literal, TypeVar, Any
 from dataclasses import dataclass
 from multiprocessing import Pool
+import random
 
 default_json_encoder = lambda obj: vars(obj) if hasattr(obj, '__dict__') else str(obj)
 
@@ -44,14 +45,14 @@ class Pipeline(tuple[T_co, ...]):
         """
         return Pipeline(map(fn, self))
 
-    def parmap(self, fn: Callable[[T_co], U], 
+    def par_map(self, fn: Callable[[T_co], U], 
                processes: int | None = None,
                maxtasksperchild: int | None = None,
                chunksize: int | None = None) -> Pipeline[U]:
         """Apply *fn* to every element in parallel using a pool of processes.
         *fn* must be picklable, so it can't be a lambda function.
         
-        >>> Pipeline(range(1, 11)).parmap(square, processes=2)
+        >>> Pipeline(range(1, 11)).par_map(square, processes=2)
         (1, 4, 9, 16, 25, 36, 49, 64, 81, 100)
         """
         with Pool(processes=processes, maxtasksperchild=maxtasksperchild) as pool:
@@ -221,13 +222,13 @@ class Pipeline(tuple[T_co, ...]):
             raise ValueError("flatten requires a Pipeline of Iterables")
         return Pipeline(itertools.chain.from_iterable(self))
 
-    def flatmap(self, fn: Callable[[T_co], Iterable[U]]) -> Pipeline[U]:
+    def flat_map(self, fn: Callable[[T_co], Iterable[U]]) -> Pipeline[U]:
         """Map each element to an iterable and flatten the result.
         
-        >>> Pipeline([1, 2, 3]).flatmap(lambda x: [x] * 2)
+        >>> Pipeline([1, 2, 3]).flat_map(lambda x: [x] * 2)
         (1, 1, 2, 2, 3, 3)
         
-        >>> Pipeline([1, 2, 3]).flatmap(lambda x: range(x))
+        >>> Pipeline([1, 2, 3]).flat_map(lambda x: range(x))
         (0, 0, 1, 0, 1, 2)
         """
         return self.map(fn).flatten()
@@ -468,6 +469,26 @@ class Pipeline(tuple[T_co, ...]):
             grouped[key(item)].append(item)
         return Pipeline((k, Pipeline(v)) for k, v in grouped.items())
 
+    def sample(self, n: int) -> Pipeline[T_co]:
+        """Select *n* random elements from the pipeline. 
+        For repeatable results, set the random seed before calling this method.
+        
+        >>> random.seed(1234)
+        >>> Pipeline([1, 2, 3, 4, 5]).sample(3)
+        (4, 1, 5)
+        """
+        return Pipeline(random.sample(self, n))
+    
+    def shuffle(self) -> Pipeline[T_co]:
+        """Shuffle the elements. 
+        For repeatable results, set the random seed before calling this method.
+        
+        >>> random.seed(1234)
+        >>> Pipeline([1, 2, 3, 4, 5]).shuffle()
+        (4, 1, 5, 3, 2)
+        """
+        return self.sample(self.len())
+    
     # === Terminal methods ===
 
     def to_list(self) -> list[T_co]:

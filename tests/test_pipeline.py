@@ -5,6 +5,7 @@ import more_itertools
 from typing import Literal, Iterable, Callable, Any
 from typing_extensions import assert_type
 import pytest
+import random
 
 def test_example_usage() -> None:
     hamming_distance = (
@@ -21,7 +22,7 @@ def test_map() -> None:
     assert_type(p, Pipeline[int])
 
 def test_parmap() -> None:
-    p = Pipeline(range(1, 11)).parmap(square, processes=2)
+    p = Pipeline(range(1, 11)).par_map(square, processes=2)
     assert p == (1, 4, 9, 16, 25, 36, 49, 64, 81, 100)
     assert_type(p, Pipeline[float])
 
@@ -138,11 +139,11 @@ def test_flatten() -> None:
     assert_type(p, Pipeline[int])
 
 def test_flatmap() -> None:
-    p1 = Pipeline([1, 2, 3]).flatmap(lambda x: [x] * 2)
+    p1 = Pipeline([1, 2, 3]).flat_map(lambda x: [x] * 2)
     assert p1 == (1, 1, 2, 2, 3, 3)
     assert_type(p1, Pipeline[int])
     
-    p2 = Pipeline([1, 2, 3]).flatmap(lambda x: range(x))
+    p2 = Pipeline([1, 2, 3]).flat_map(lambda x: range(x))
     assert p2 == (0, 0, 1, 0, 1, 2)
     assert_type(p2, Pipeline[int])    
 
@@ -274,6 +275,18 @@ def test_get_group() -> None:
     # Test KeyError for non-existent group
     with pytest.raises(KeyError):
         grouped.to_dict()['Z']
+
+def test_sample() -> None:
+    random.seed(1234) 
+    p = Pipeline([1, 2, 3, 4, 5]).sample(3)
+    assert p == (4, 1, 5)
+    assert_type(p, Pipeline[int])
+
+def test_shuffle() -> None:
+    random.seed(1234) 
+    p = Pipeline([1, 2, 3, 4, 5]).shuffle()
+    assert p == (4, 1, 5, 3, 2)
+    assert_type(p, Pipeline[int])  
 
 def test_unpack_filter() -> None:
     names = ['Roger', 'Alice', 'Adam', 'Bob']
