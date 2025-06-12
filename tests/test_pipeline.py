@@ -1,5 +1,5 @@
 # C:/Python310/python.exe -m pytest
-from oa_utils.pipeline import Pipeline, Vector2, unpack
+from oa_utils.pipeline import Pipeline, Vector2, unpack, square, swallow
 import itertools
 import more_itertools
 from typing import Literal, Iterable, Callable, Any
@@ -19,6 +19,11 @@ def test_map() -> None:
     p = Pipeline([1, 2, 3]).map(lambda x: x * 2)
     assert p == (2, 4, 6)
     assert_type(p, Pipeline[int])
+
+def test_parmap() -> None:
+    p = Pipeline(range(1, 11)).parmap(square, processes=2)
+    assert p == (1, 4, 9, 16, 25, 36, 49, 64, 81, 100)
+    assert_type(p, Pipeline[float])
 
 def test_filter() -> None:
     p = Pipeline([1, 2, 3, 4]).filter(lambda x: x % 2 == 0)
@@ -145,6 +150,11 @@ def test_for_each() -> None:
     # Not testing the printed output, but ensuring it returns the pipeline.
     p = Pipeline([1, 2, 3]).for_each(print)
     assert p == (1, 2, 3)
+    assert_type(p, Pipeline[int])
+
+def test_par_for_each() -> None:
+    p = Pipeline(range(1, 11)).par_for_each(swallow, processes=2)
+    assert p == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     assert_type(p, Pipeline[int])
 
 def test_for_self() -> None:
@@ -321,14 +331,20 @@ def test_last() -> None:
     assert_type(p, int)
 
 def test_reduce() -> None:
-    p = Pipeline([104, 101, 108, 108, 111]).reduce(lambda acc, x: acc + chr(x), "")
-    assert p == "hello"
-    assert_type(p, str)
+    res = Pipeline([104, 101, 108, 108, 111]).reduce(lambda acc, x: acc + chr(x), "")
+    assert res == "hello"
+    assert_type(res, str)
 
 def test_reduce_non_empty() -> None:
-    p = Pipeline([1, 2, 3]).reduce_non_empty(lambda acc, x: acc + x)
-    assert p == 6
-    assert_type(p, int)
+    res = Pipeline([1, 2, 3]).reduce_non_empty(lambda acc, x: acc + x)
+    assert res == 6
+    assert_type(res, int)
+
+def test_par_reduce_non_empty() -> None:
+    from operator import add
+    res = Pipeline("Parallelism!").par_reduce_non_empty(add, processes=2)
+    assert res == "Parallelism!"
+    assert_type(res, str)
 
 def test_len() -> None:
     p = Pipeline([1, 2, 3]).len()

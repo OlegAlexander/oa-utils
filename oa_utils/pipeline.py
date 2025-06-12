@@ -8,6 +8,7 @@ from tabulate import tabulate
 from collections import defaultdict
 from typing import IO, Callable, Iterable, Sequence, Literal, TypeVar, Any
 from dataclasses import dataclass
+from multiprocessing import Pool
 
 default_json_encoder = lambda obj: vars(obj) if hasattr(obj, '__dict__') else str(obj)
 
@@ -42,6 +43,19 @@ class Pipeline(tuple[T_co, ...]):
         (2, 4, 6)
         """
         return Pipeline(map(fn, self))
+
+    def parmap(self, fn: Callable[[T_co], U], 
+               processes: int | None = None,
+               maxtasksperchild: int | None = None,
+               chunksize: int | None = None) -> Pipeline[U]:
+        """Apply *fn* to every element in parallel using a pool of processes.
+        *fn* must be picklable, so it can't be a lambda function.
+        
+        >>> Pipeline(range(1, 11)).parmap(square, processes=2)
+        (1, 4, 9, 16, 25, 36, 49, 64, 81, 100)
+        """
+        with Pool(processes=processes, maxtasksperchild=maxtasksperchild) as pool:
+            return Pipeline(pool.map(fn, self, chunksize))
 
     def filter(self, pred: Callable[[T_co], bool]) -> Pipeline[T_co]:
         """Keep only elements for which *pred* returns True.
@@ -229,6 +243,21 @@ class Pipeline(tuple[T_co, ...]):
         """
         for item in self:
             fn(item)
+        return self
+
+    def par_for_each(self, fn: Callable[[T_co], None],
+                     processes: int | None = None,
+                     maxtasksperchild: int | None = None,
+                     chunksize: int | None = None) -> Pipeline[T_co]:
+        """Call a side-effecting function for every element in parallel 
+        using a pool of processes and return self.
+        *fn* must be picklable, so it can't be a lambda function.
+        
+        >>> Pipeline(range(1, 11)).par_for_each(swallow, processes=2)
+        (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+        """
+        with Pool(processes=processes, maxtasksperchild=maxtasksperchild) as pool:
+            pool.map(fn, self, chunksize)
         return self
 
     def for_self(self, fn: Callable[[Pipeline[T_co]], None]) -> Pipeline[T_co]:
@@ -551,6 +580,36 @@ class Pipeline(tuple[T_co, ...]):
             raise ValueError("Pipeline is empty")
         return functools.reduce(fn, self)
 
+    def par_reduce_non_empty(
+        self,
+        fn: Callable[[T_co, T_co], T_co],
+        processes: int | None = None,
+        maxtasksperchild: int | None = None,
+        chunksize: int | None = None) -> T_co:
+        """
+        Parallel binary-tree reduction. O(log n)
+        *fn* must be picklable (no lambdas).
+
+        >>> from operator import add
+        >>> Pipeline("Parallelism!").par_reduce_non_empty(add, processes=2)
+        'Parallelism!'
+        """
+        if self.is_empty():
+            raise ValueError("Pipeline is empty")
+
+        values = list(self)
+        with Pool(processes=processes, maxtasksperchild=maxtasksperchild) as pool:
+            while len(values) > 1:
+                # pairwise grouping: (v0,v1), (v2,v3), ...
+                pairs = list(zip(values[::2], values[1::2]))
+                # reduce each pair in parallel
+                reduced = pool.starmap(fn, pairs, chunksize) if pairs else []
+                # carry over the last element if the list length was odd
+                if len(values) % 2 == 1:
+                    reduced.append(values[-1])
+                values = reduced
+        return values[0]
+
     def len(self) -> int:
         """Return the length of the pipeline.
         
@@ -657,6 +716,14 @@ class Pipeline(tuple[T_co, ...]):
         return Pipeline(self).map(lambda x: x[0]), Pipeline(self).map(lambda x: x[1])
 
 # === Helpers ===
+
+def square(x: float) -> float:
+    """Used for testing."""
+    return x * x
+
+def swallow(x: Any) -> None:
+    """Used for testing."""
+    pass
 
 @dataclass
 class Vector2:
