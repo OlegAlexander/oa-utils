@@ -6,7 +6,7 @@ import json
 from pprint import pprint, pformat
 from tabulate import tabulate
 from collections import defaultdict
-from typing import IO, Callable, Iterable, Sequence, Literal, TypeVar, Any
+from typing import IO, Callable, Iterable, Sequence, Literal, TypeVar, Any, overload
 from dataclasses import dataclass
 from multiprocessing import Pool
 import random
@@ -521,6 +521,14 @@ class Pipeline(tuple[T_co, ...]):
         """
         return list(self)
 
+    def to_tuple(self) -> tuple[T_co, ...]:
+        """Convert to a plain tuple.
+        
+        >>> Pipeline([1, 2, 3]).to_tuple()
+        (1, 2, 3)
+        """
+        return tuple(self)
+
     def to_set(self) -> set[T_co]:
         """Convert to a set, removing duplicates.
         
@@ -757,6 +765,40 @@ class Pipeline(tuple[T_co, ...]):
         (('Alice',), ('Bob',), ('Charlie',))
         """
         return Pipeline(self).map(lambda x: x[0]), Pipeline(self).map(lambda x: x[1])
+
+    # === Dunder methods ===
+    
+    def __add__(self, other: Iterable[T_co]) -> Pipeline[T_co]: # type: ignore
+        """Concatenate with another iterable.
+        
+        >>> Pipeline([1, 2]) + [3, 4]
+        (1, 2, 3, 4)
+        """
+        return Pipeline(self.to_list() + list(other)) 
+
+    def __radd__(self, other: Iterable[T_co]) -> Pipeline[T_co]: # type: ignore
+        """Concatenate with another iterable (right addition).
+        
+        >>> [1, 2] + Pipeline([3, 4])
+        (1, 2, 3, 4)
+        """
+        return Pipeline(list(other) + self.to_list())
+
+    def __mul__(self, n: int) -> Pipeline[T_co]: # type: ignore
+        """Repeat the pipeline *n* times.
+        
+        >>> Pipeline([1, 2]) * 2
+        (1, 2, 1, 2)
+        """
+        return Pipeline(self.to_list() * n)
+ 
+    def __rmul__(self, n: int) -> Pipeline[T_co]: # type: ignore
+        """Repeat the pipeline *n* times (right multiplication).
+        
+        >>> 2 * Pipeline([1, 2])
+        (1, 2, 1, 2)
+        """
+        return self * n
 
 # === Helpers ===
 

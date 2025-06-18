@@ -311,6 +311,11 @@ def test_to_list() -> None:
     assert p == [1, 2, 3]
     assert_type(p, list[int])
 
+def test_to_tuple() -> None:
+    p = Pipeline([1, 2, 3]).to_tuple()
+    assert p == (1, 2, 3)
+    assert_type(p, tuple[int, ...])
+
 def test_to_set() -> None:
     p = Pipeline([1, 2, 3, 3]).to_set()
     assert p == {1, 2, 3}
@@ -447,3 +452,23 @@ def test_unzip() -> None:
     assert values == (('Alice',), ('Bob',), ('Charlie',))
     assert_type(keys, Pipeline[str])
     assert_type(values, Pipeline[Pipeline[str]])
+    
+def test__add__() -> None:
+    p = Pipeline([1, 2, 3]) + [4, 5, 6]
+    assert p == (1, 2, 3, 4, 5, 6)
+    assert_type(p, Pipeline[int])
+
+def test__radd__() -> None:
+    p = [1, 2, 3] + Pipeline([4, 5, 6])
+    assert p == (1, 2, 3, 4, 5, 6)
+    assert_type(p, Pipeline[int])
+
+def test__mul__() -> None:
+    p = Pipeline([1, 2, 3]) * 2
+    assert p == (1, 2, 3, 1, 2, 3)
+    assert_type(p, Pipeline[int])
+    
+def test__rmul__() -> None:
+    p = 2 * Pipeline([1, 2, 3])
+    assert p == (1, 2, 3, 1, 2, 3)
+    assert_type(p, Pipeline[int])
