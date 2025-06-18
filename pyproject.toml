@@ -2,7 +2,7 @@
 
 [project]
 name = "oa-utils"
-version = "0.1.18"
+version = "0.1.19"
 description = "Statically typed Python utilities for functional programming."
 authors = [
     {name = "Oleg Alexander"}

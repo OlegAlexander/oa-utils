@@ -1,5 +1,6 @@
 # C:/Python310/python.exe -m pytest
-from oa_utils.pipeline import Pipeline, Vector2, unpack, square, swallow
+from oa_utils.pipeline import Pipeline, Vector2, unpack, square, swallow, shuffle_batch
+from operator import add
 import itertools
 import more_itertools
 from typing import Literal, Iterable, Callable, Any
@@ -50,6 +51,17 @@ def test_zip_with() -> None:
     p = Pipeline([1, 2]).zip_with(lambda a, b: a + b, [10, 20])
     assert p == (11, 22)
     assert_type(p, Pipeline[int])
+
+def test_par_zip_with() -> None:
+    p1: Pipeline[int] = Pipeline([1, 2]).par_zip_with(add , [10, 20], processes=2)
+    assert p1 == (11, 22)
+    assert_type(p1, Pipeline[int])
+    
+    # Reproducible shuffle example
+    seeds = [123, 456, 789]
+    p2 = Pipeline([1, 2, 3, 4] * 3).batch(4).par_zip_with(shuffle_batch, seeds, processes=2)
+    assert p2 == ((1, 2, 4, 3), (4, 2, 3, 1), (4, 3, 1, 2))
+    assert_type(p2, Pipeline[Pipeline[int]])
 
 def test_join_with() -> None:
     p = Pipeline([1, 2, 3]).join_with(0)
@@ -354,7 +366,6 @@ def test_reduce_non_empty() -> None:
     assert_type(res, int)
 
 def test_par_reduce_non_empty() -> None:
-    from operator import add
     res = Pipeline("Parallelism!").par_reduce_non_empty(add, processes=2)
     assert res == "Parallelism!"
     assert_type(res, str)

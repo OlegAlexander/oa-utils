@@ -93,6 +93,28 @@ class Pipeline(tuple[T_co, ...]):
         """
         return Pipeline(fn(a, b) for a, b in zip(self, other, strict=strict))
 
+    def par_zip_with(self, fn: Callable[[T_co, U], V], 
+                     other: Iterable[U],
+                     strict: bool = False,
+                     processes: int | None = None,
+                     maxtasksperchild: int | None = None,
+                     chunksize: int | None = None) -> Pipeline[V]:
+        """Zip with *other* and immediately combine pairs using *fn* in parallel.
+        *fn* must be picklable, so it can't be a lambda function.
+        
+        >>> from operator import add
+        >>> Pipeline([1, 2]).par_zip_with(add, [10, 20], processes=2)
+        (11, 22)
+        
+        Reproducible shuffle example:
+        
+        >>> seeds = [123, 456, 789]
+        >>> Pipeline([1, 2, 3, 4] * 3).batch(4).par_zip_with(shuffle_batch, seeds, processes=2)
+        ((1, 2, 4, 3), (4, 2, 3, 1), (4, 3, 1, 2))
+        """
+        with Pool(processes=processes, maxtasksperchild=maxtasksperchild) as pool:
+            return Pipeline(pool.starmap(fn, zip(self, other, strict=strict), chunksize))
+
     def join_with(self: Pipeline[T], separator: T) -> Pipeline[T]:
         """Join elements with a *separator*.
         
@@ -272,8 +294,8 @@ class Pipeline(tuple[T_co, ...]):
         return self
 
     def apply(self, fn: Callable[[Iterable[T_co]], Iterable[U]]) -> Pipeline[U]:
-        """Apply an external iterable-to-iterable function (e.g. from *itertools* or *more_itertools*).
-        To preserve type safety, it is recommended to use a type hint for *fn*.
+        """Apply a custom or external iterable-to-iterable function (e.g. from *itertools* or *more_itertools*).
+        To preserve type safety, it's recommended to use a type hint for *fn*.
         
         >>> transpose: Callable[[Iterable[Iterable[int]]], Iterable[tuple[int, ...]]] = more_itertools.transpose
         >>> Pipeline([[1, 2, 3], [4, 5, 6]]).apply(transpose)
@@ -745,6 +767,11 @@ def square(x: float) -> float:
 def swallow(x: Any) -> None:
     """Used for testing."""
     pass
+
+def shuffle_batch(batch: Pipeline[int], seed: int) -> Pipeline[int]:
+    """Used for tesing."""
+    random.seed(seed)
+    return batch.shuffle()
 
 @dataclass
 class Vector2:
