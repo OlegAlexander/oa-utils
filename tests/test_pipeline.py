@@ -1,5 +1,5 @@
 # C:/Python310/python.exe -m pytest
-from oa_utils.pipeline import Pipeline, Vector2, unpack, square, swallow, shuffle_batch
+from oa_utils import Pipeline, Vector2, unpack, square, swallow, shuffle_batch
 from operator import add
 import itertools
 import more_itertools

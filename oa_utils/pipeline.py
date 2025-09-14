@@ -835,7 +835,7 @@ def unpack(fn: Callable[[T, U], V]) -> Callable[[tuple[T, U]], V]:
 
 if __name__ == "__main__":
     # Interpreter usage: 
-    # from importlib import reload; import oa_utils.pipeline; reload(oa_utils.pipeline); from oa_utils.pipeline import Pipeline, unpack
+    # from importlib import reload; import oa_utils; reload(oa_utils); from oa_utils import Pipeline, unpack
     import doctest
     doctest.testmod()
     
